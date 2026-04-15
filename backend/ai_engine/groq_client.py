@@ -14,11 +14,14 @@ logger = logging.getLogger(__name__)
 
 # Primary models for rotation on the Free Tier
 DEFAULT_MODEL_POOL = [
-    'llama-3.1-8b-instant',
     'llama-3.3-70b-versatile',
-    'mixtral-8x7b-32768',
+    'llama-3.1-8b-instant',
+    'meta-llama/llama-4-scout-17b-16e-instruct',
+    'openai/gpt-oss-20b',
+    'qwen/qwen3-32b',
     'gemma2-9b-it',
 ]
+
 
 FALLBACK_MODEL = 'llama-3.1-8b-instant'
 GROQ_CHAT_COMPLETIONS_URL = 'https://api.groq.com/openai/v1/chat/completions'
