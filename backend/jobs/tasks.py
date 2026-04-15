@@ -45,7 +45,18 @@ def generate_content_task(self, job_id: str):
         logger.info(f"[Job {job_id}] Building prompt for topic: {job.topic}")
         prompt = build_combined_prompt(job)
 
+        # ── Step 1.5: Safety Check ─────────────────────────────────
+        from ai_engine.groq_client import verify_prompt_safety
+        logger.info(f"[Job {job_id}] Running safety check...")
+        
+        # Combine topic and notes for a thorough check
+        safety_text = f"Topic: {job.topic} | Notes: {job.additional_notes}"
+        if not verify_prompt_safety(safety_text):
+            logger.warning(f"[Job {job_id}] Prompt flagged as malicious!")
+            raise PermissionError("Safety Check Failed: The provided topic or instructions violated our content policy.")
+
         # ── Step 2: Call Groq AI ───────────────────────────────────
+
         logger.info(f"[Job {job_id}] Calling Groq API...")
         result = call_groq(prompt['system'], prompt['user'])
         content = result['content']

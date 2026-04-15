@@ -15,7 +15,7 @@ FALLBACK_MODEL = 'llama-3.1-8b-instant'
 GROQ_CHAT_COMPLETIONS_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 
-def _call_groq_http(system_prompt: str, user_prompt: str, model: str) -> dict:
+def _call_groq_http(system_prompt: str, user_prompt: str, model: str, max_tokens: int = 4096) -> dict:
     payload = {
         'model': model,
         'messages': [
@@ -23,7 +23,7 @@ def _call_groq_http(system_prompt: str, user_prompt: str, model: str) -> dict:
             {'role': 'user', 'content': user_prompt},
         ],
         'temperature': 0.7,
-        'max_tokens': 4096,
+        'max_tokens': max_tokens,
     }
 
     req = urlrequest.Request(
@@ -57,7 +57,7 @@ def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dic
         try:
             logger.info(f"Groq API call attempt {attempt + 1} with model {model}")
 
-            response = _call_groq_http(system_prompt, user_prompt, model)
+            response = _call_groq_http(system_prompt, user_prompt, model, max_tokens=8192)
             raw_text = (response.get('choices', [{}])[0].get('message', {}).get('content', '') or '').strip()
             tokens_used = (response.get('usage') or {}).get('total_tokens')
 
@@ -118,3 +118,32 @@ def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dic
                 time.sleep(2 ** attempt)
     
     raise ValueError(f"Groq API failed after {max_retries} attempts. Last error: {last_error}")
+
+
+def verify_prompt_safety(text: str) -> bool:
+    """
+    Uses llama-prompt-guard-2-22m to check if a prompt is malicious.
+    Returns True if benign, False if malicious.
+    """
+    if not settings.GROQ_API_KEY:
+        return True # Fallback to true if not configured
+
+    model = "llama-prompt-guard-2-22m"
+    try:
+        # Prompt guard doesn't strictly need a system prompt, we just send the user content
+        response = _call_groq_http(
+            system_prompt="You are a safety classifier.", 
+            user_prompt=text, 
+            model=model,
+            max_tokens=10 # It only returns one word
+        )
+        classification = (response.get('choices', [{}])[0].get('message', {}).get('content', '') or '').strip().lower()
+        
+        logger.info(f"Prompt safety check result: {classification}")
+        
+        # The model returns 'benign' or 'malicious'
+        return "malicious" not in classification
+    except Exception as e:
+        logger.error(f"Safety check failed: {e}")
+        return True # Default to allow if check fails (to avoid blocking users on API issues)
+

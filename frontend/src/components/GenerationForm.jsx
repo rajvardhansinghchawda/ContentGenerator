@@ -146,7 +146,7 @@ export default function GenerationForm({ onSubmit, disabled }) {
             value={form.num_questions}
             onChange={handleChange}
             min={1}
-            max={50}
+            max={100}
             disabled={disabled}
           />
         </div>
@@ -162,7 +162,7 @@ export default function GenerationForm({ onSubmit, disabled }) {
             value={form.marks_per_question}
             onChange={handleChange}
             min={1}
-            max={20}
+            max={100}
             disabled={disabled}
           />
         </div>
