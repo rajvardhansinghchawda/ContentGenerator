@@ -11,7 +11,7 @@ google-api-python-client==2.131.0
 groq==0.9.0
 python-dotenv==1.0.1
 cryptography==42.0.8
-pydantic==2.7.1
+pydantic==2.10.0
 django-environ==0.11.2
 psycopg2-binary==2.9.9
 gunicorn==22.0.0
