@@ -57,7 +57,7 @@ def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dic
         try:
             logger.info(f"Groq API call attempt {attempt + 1} with model {model}")
 
-            response = _call_groq_http(system_prompt, user_prompt, model, max_tokens=8192)
+            response = _call_groq_http(system_prompt, user_prompt, model, max_tokens=3500)
             raw_text = (response.get('choices', [{}])[0].get('message', {}).get('content', '') or '').strip()
             tokens_used = (response.get('usage') or {}).get('total_tokens')
 
@@ -95,7 +95,12 @@ def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dic
                 )
 
             logger.warning(f"Attempt {attempt + 1} failed: {last_error}")
-            if attempt == 1 and model != FALLBACK_MODEL:
+            
+            # Handle rate limit specifically
+            if e.code == 429:
+                logger.info(f"Rate limit hit. Waiting 6 seconds...")
+                time.sleep(6) # Free tier TPM reset is usually quick
+            elif attempt == 1 and model != FALLBACK_MODEL:
                 model = FALLBACK_MODEL
                 logger.info(f"Switching to fallback model: {FALLBACK_MODEL}")
             elif attempt < max_retries - 1:

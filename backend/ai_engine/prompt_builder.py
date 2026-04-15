@@ -84,7 +84,9 @@ Return ONLY this JSON structure (no markdown, no extra text):
   }}
 }}
 
-Ensure the quiz has exactly {job.num_questions} questions. For MCQ questions, include exactly 4 options. 
+Ensure the quiz has exactly {job.num_questions} questions. NO MORE, NO LESS. 
+CRITICAL: You MUST provide exactly {job.num_questions} question objects in the 'questions' array.
+For MCQ questions, include exactly 4 options. 
 CRITICAL: Do not always make the first option (A) the correct answer. Randomize the position of the correct answer (A, B, C, or D) across all questions.
 For SHORT questions, set options to [] and correct_answer to a brief answer string.
 Do not use any emojis in the content generation."""
