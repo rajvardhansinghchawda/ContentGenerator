@@ -22,7 +22,8 @@ def generate_content_task(self, job_id: str):
     5. Update job status
     """
     from jobs.models import Job
-    from ai_engine.prompt_builder import build_combined_prompt
+    from ai_engine.prompt_builder import build_docs_prompt, build_quiz_prompt
+
     from ai_engine.groq_client import call_groq
     from ai_engine.validators import validate_content
     from google_services.auth_manager import build_docs_service, build_forms_service, build_drive_service
@@ -41,11 +42,7 @@ def generate_content_task(self, job_id: str):
     start_time = time.time()
 
     try:
-        # ── Step 1: Build prompt ───────────────────────────────────
-        logger.info(f"[Job {job_id}] Building prompt for topic: {job.topic}")
-        prompt = build_combined_prompt(job)
-
-        # ── Step 1.5: Safety Check ─────────────────────────────────
+        # ── Step 1: Safety Check ─────────────────────────────────
         from ai_engine.groq_client import verify_prompt_safety
         logger.info(f"[Job {job_id}] Running safety check...")
         
@@ -55,13 +52,26 @@ def generate_content_task(self, job_id: str):
             logger.warning(f"[Job {job_id}] Prompt flagged as malicious!")
             raise PermissionError("Safety Check Failed: The provided topic or instructions violated our content policy.")
 
-        # ── Step 2: Call Groq AI ───────────────────────────────────
+        # ── Step 2: Phase 1 - Generate Docs ────────────────────────
+        
+        logger.info(f"[Job {job_id}] Calling Groq Phase 1 (Docs)...")
+        docs_prompt = build_docs_prompt(job)
+        docs_res = call_groq(docs_prompt['system'], docs_prompt['user'])
+        
+        # ── Step 2.5: Phase 2 - Generate Quiz ──────────────────────
+        logger.info(f"[Job {job_id}] Calling Groq Phase 2 (Quiz)...")
+        quiz_prompt = build_quiz_prompt(job)
+        quiz_res = call_groq(quiz_prompt['system'], quiz_prompt['user'])
 
-        logger.info(f"[Job {job_id}] Calling Groq API...")
-        result = call_groq(prompt['system'], prompt['user'])
-        content = result['content']
-        tokens_used = result['tokens_used']
-        model_used = result['model_used']
+        # Merge results
+        content = {
+            'pre_doc': docs_res['content']['pre_doc'],
+            'post_doc': docs_res['content']['post_doc'],
+            'quiz': quiz_res['content']['quiz']
+        }
+        tokens_used = (docs_res.get('tokens_used') or 0) + (quiz_res.get('tokens_used') or 0)
+        model_used = docs_res['model_used']
+
 
         # ── Step 3: Validate ───────────────────────────────────────
         logger.info(f"[Job {job_id}] Validating content...")
