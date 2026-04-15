@@ -36,10 +36,11 @@ services:
         value: "True" # Run tasks synchronously since we have no separate worker
 
   # 2. React Frontend (Vite)
-  - type: static_site
-    name: eduflow-frontend
+  - type: web
+    name: frontend-jugaadu
+    runtime: static
     buildCommand: "npm install && npm run build"
-    publishDir: dist
+    staticPublishPath: dist
     rootDir: frontend
     envVars:
       - key: VITE_API_BASE_URL
