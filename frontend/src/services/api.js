@@ -1,10 +1,17 @@
 import axios from 'axios'
 
+const getBaseURL = () => {
+  const url = import.meta.env.VITE_API_BASE_URL || ''
+  if (!url) return ''
+  return url.endsWith('/') ? url : `${url}/`
+}
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '',
+  baseURL: getBaseURL(),
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 })
+
 
 // Auth
 export const getGoogleLoginUrl = () => api.get('/api/auth/google/login/')
