@@ -1,0 +1,26 @@
+import axios from 'axios'
+
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || '',
+  withCredentials: true,
+  headers: { 'Content-Type': 'application/json' },
+})
+
+// Auth
+export const getGoogleLoginUrl = () => api.get('/api/auth/google/login/')
+export const getMe = () => api.get('/api/auth/me/')
+export const logout = () => api.post('/api/auth/logout/')
+
+// Jobs
+export const createJob = (data) => api.post('/api/jobs/create/', data)
+export const getJobs = (params) => api.get('/api/jobs/', { params })
+export const getJobStatus = (id) => api.get(`/api/jobs/${id}/status/`)
+export const getJobDetail = (id) => api.get(`/api/jobs/${id}/`)
+export const regenerateJob = (id) => api.post(`/api/jobs/${id}/regenerate/`)
+
+// Subjects
+export const getSubjects = () => api.get('/api/subjects/')
+export const createSubject = (data) => api.post('/api/subjects/', data)
+export const deleteSubject = (id) => api.delete(`/api/subjects/${id}/`)
+
+export default api
