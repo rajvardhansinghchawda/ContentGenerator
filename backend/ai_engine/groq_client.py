@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL_POOL = [
     'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
-    'meta-llama/llama-4-scout-17b-16e-instruct',
-    'openai/gpt-oss-20b',
-    'qwen/qwen3-32b',
+    'llama3-70b-8192',
+    'llama3-8b-8192',
     'gemma2-9b-it',
 ]
+
 
 
 FALLBACK_MODEL = 'llama-3.1-8b-instant'
