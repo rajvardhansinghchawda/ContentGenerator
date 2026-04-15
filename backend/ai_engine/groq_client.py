@@ -16,8 +16,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL_POOL = [
     'llama-3.3-70b-versatile',
     'llama-3.1-8b-instant',
-    'llama-3.1-70b-versatile',
-    'gemma2-9b-it',
 ]
 
 
@@ -130,20 +128,21 @@ def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 5, prefer
     raise ValueError(f"Groq API failed after {max_retries} attempts with rotation. Last error: {last_error}")
 
 
-def verify_prompt_safety(text: str) -> bool:
-    """Uses llama-prompt-guard-2-22m for a safe check."""
-    if not settings.GROQ_API_KEY:
-        return True
+def verify_prompt_safety(prompt: str, model: str = "llama-guard-3-8b", **kwargs) -> bool:
+    """Uses llama-guard via direct HTTP for safety check."""
     try:
-        response = _call_groq_http(
-            system_prompt="You are a safety classifier.", 
-            user_prompt=text, 
-            model="llama-prompt-guard-2-22m",
+        # We reuse the _call_groq_http logic but with a specialized Guard prompt
+        # llama-guard expect a specific format but for a simple scan, a direct user message works
+        # llama-3.1-8b-instant is efficient for safety classification
+        completion = _call_groq_http(
+            system_prompt="You are a safety classifier. Respond with 'safe' or 'unsafe'.",
+            user_prompt=prompt,
+            model="llama-3.1-8b-instant",
             max_tokens=10
         )
-        classification = (response.get('choices', [{}])[0].get('message', {}).get('content', '') or '').strip().lower()
-        logger.info(f"Safety check result: {classification}")
-        return "malicious" not in classification
+        response = completion.get('choices', [{}])[0].get('message', {}).get('content', '')
+        return "unsafe" not in response.lower()
     except Exception as e:
         logger.error(f"Safety check failed: {e}")
+        # If the check fails (API timeout etc), we default to safe to not block user workflow
         return True

@@ -1,6 +1,5 @@
-import { useState } from 'react'
-import { getSubjects } from '../services/api.js'
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
 import './GenerationForm.css'
 
 const DIFFICULTY_OPTIONS = [
@@ -16,23 +15,34 @@ const QUESTION_TYPES = [
 ]
 
 export default function GenerationForm({ onSubmit, disabled }) {
-  const [subjects, setSubjects] = useState([])
+  const { teacher } = useAuth()
   const [form, setForm] = useState({
     topic: '',
-    subject: '',
+    subject_name: '',
+    subject_code: '',
     class_section: '',
     difficulty: 'medium',
     num_questions: 10,
     marks_per_question: 2,
     question_type: 'MCQ',
     additional_notes: '',
+    lecture_no: '',
+    session: '',
+    semester: '',
   })
 
+
   useEffect(() => {
-    getSubjects()
-      .then(res => setSubjects(res.data.results || res.data || []))
-      .catch(() => setSubjects([]))
-  }, [])
+    if (teacher) {
+      setForm(prev => ({
+        ...prev,
+        session: teacher.default_session || prev.session,
+        semester: teacher.default_semester || prev.semester,
+        subject_name: teacher.default_subject_name || prev.subject_name,
+        subject_code: teacher.default_subject_code || prev.subject_code,
+      }))
+    }
+  }, [teacher])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -45,12 +55,16 @@ export default function GenerationForm({ onSubmit, disabled }) {
 
     const payload = {
       topic: form.topic,
-      subject: form.subject || undefined,
       difficulty: form.difficulty,
       num_questions: form.num_questions,
       marks_per_question: form.marks_per_question,
       question_type: form.question_type,
       additional_notes: form.additional_notes,
+      lecture_no: form.lecture_no,
+      session: form.session,
+      semester: form.semester,
+      subject_name: form.subject_name,
+      subject_code: form.subject_code,
     }
 
     onSubmit(payload)
@@ -85,22 +99,75 @@ export default function GenerationForm({ onSubmit, disabled }) {
           />
         </div>
 
-        {/* Subject */}
+        {/* Subject, Lecture, Session */}
         <div className="form-group">
-          <label className="form-label" htmlFor="subject">Subject</label>
-          <select
-            id="subject"
-            className="form-select"
-            name="subject"
-            value={form.subject}
+          <label className="form-label" htmlFor="subject_name">Subject Name</label>
+          <input
+            id="subject_name"
+            className="form-input"
+            type="text"
+            name="subject_name"
+            placeholder="e.g. Data Analysis"
+            value={form.subject_name}
             onChange={handleChange}
             disabled={disabled}
-          >
-            <option value="">Select a subject</option>
-            {subjects.map(s => (
-              <option key={s.id} value={s.id}>{s.name}</option>
-            ))}
-          </select>
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="subject_code">Subject Code</label>
+          <input
+            id="subject_code"
+            className="form-input"
+            type="text"
+            name="subject_code"
+            placeholder="e.g. CS-101"
+            value={form.subject_code}
+            onChange={handleChange}
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="lecture_no">Lecture No.</label>
+          <input
+            id="lecture_no"
+            className="form-input"
+            type="text"
+            name="lecture_no"
+            placeholder="e.g. 05"
+            value={form.lecture_no}
+            onChange={handleChange}
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="session">Session</label>
+          <input
+            id="session"
+            className="form-input"
+            type="text"
+            name="session"
+            placeholder="e.g. Jan-Jun 2026"
+            value={form.session}
+            onChange={handleChange}
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="semester">Semester</label>
+          <input
+            id="semester"
+            className="form-input"
+            type="text"
+            name="semester"
+            placeholder="e.g. 4th"
+            value={form.semester}
+            onChange={handleChange}
+            disabled={disabled}
+          />
         </div>
 
         {/* Class/Section */}

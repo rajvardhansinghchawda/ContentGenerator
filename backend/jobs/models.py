@@ -54,6 +54,11 @@ class Job(models.Model):
     marks_per_question  = models.DecimalField(max_digits=5, decimal_places=2, default=1.0)
     question_type       = models.CharField(max_length=20, choices=QUESTION_TYPE_CHOICES, default='MCQ')
     language            = models.CharField(max_length=50, default='English')
+    lecture_no          = models.CharField(max_length=50, blank=True)
+    session             = models.CharField(max_length=100, blank=True, help_text="e.g. Jan-Jun 2026")
+    semester            = models.CharField(max_length=50, blank=True, help_text="e.g. 4th")
+    subject_name        = models.CharField(max_length=255, blank=True, default="Generic")
+    subject_code        = models.CharField(max_length=50, blank=True, default="N/A")
     additional_notes    = models.TextField(blank=True)
 
     status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)

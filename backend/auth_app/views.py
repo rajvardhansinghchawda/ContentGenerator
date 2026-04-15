@@ -10,6 +10,8 @@ from rest_framework.views import APIView
 
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
 
 from .models import Teacher
 from .token_utils import encrypt_token
@@ -89,6 +91,58 @@ class MeView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         return Response(TeacherSerializer(request.user).data)
+
+    def patch(self, request):
+        serializer = TeacherSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AssetUploadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        file_obj = request.FILES.get('file')
+        asset_type = request.data.get('type') # 'header' or 'footer'
+        
+        if not file_obj or asset_type not in ['header', 'footer']:
+            return Response({'error': 'Missing file or invalid type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from google_services.auth_manager import build_drive_service
+            drive_service = build_drive_service(request.user)
+
+            # 1. Upload to Google Drive
+            file_metadata = {
+                'name': f'eduflow_{asset_type}_{request.user.id}',
+                'parents': [] # Root for now
+            }
+            media = MediaIoBaseUpload(file_obj, mimetype=file_obj.content_type, resumable=True)
+            uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+            file_id = uploaded_file.get('id')
+
+            # 2. Set permissions so the Doc can access it (anyone with link can view)
+            drive_service.permissions().create(
+                fileId=file_id,
+                body={'role': 'reader', 'type': 'anyone'}
+            ).execute()
+
+            # 3. Update Teacher model
+            if asset_type == 'header':
+                request.user.header_image_id = file_id
+            else:
+                request.user.footer_image_id = file_id
+            request.user.save()
+
+            return Response({
+                'message': f'{asset_type.capitalize()} asset uploaded successfully.',
+                'file_id': file_id
+            })
+        except Exception as e:
+            logger.error(f"Asset upload failed: {e}", exc_info=True)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LogoutView(APIView):

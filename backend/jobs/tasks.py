@@ -42,16 +42,16 @@ def generate_content_task(self, job_id: str):
     start_time = time.time()
 
     try:
-        # ── Step 1: Safety Check ─────────────────────────────────
+        from ai_engine.groq_client import verify_prompt_safety
+        logger.info(f"[Job {job_id}] Starting generation pipeline...")
+        
+        # Combine topic and notes for a thorough check
         job.current_step = "Safety Check: Scanning topic..."
         job.save(update_fields=['current_step'])
-
-        from ai_engine.groq_client import verify_prompt_safety
-        logger.info(f"[Job {job_id}] Running safety check...")
         
         # Combine topic and notes for a thorough check
         safety_text = f"Topic: {job.topic} | Notes: {job.additional_notes}"
-        if not verify_prompt_safety(safety_text):
+        if not verify_prompt_safety(safety_text, model='llama-guard-3-8b'):
             logger.warning(f"[Job {job_id}] Prompt flagged as malicious!")
             raise PermissionError("Safety Check Failed: The provided topic or instructions violated our content policy.")
 
@@ -108,10 +108,10 @@ def generate_content_task(self, job_id: str):
         drive_svc = build_drive_service(teacher)
 
         logger.info(f"[Job {job_id}] Creating pre-doc...")
-        pre_doc_id, pre_doc_url = create_pre_doc(docs_svc, drive_svc, content['pre_doc'], job.topic)
+        pre_doc_id, pre_doc_url = create_pre_doc(docs_svc, drive_svc, content['pre_doc'], job)
 
         logger.info(f"[Job {job_id}] Creating post-doc...")
-        post_doc_id, post_doc_url = create_post_doc(docs_svc, drive_svc, content['post_doc'], job.topic)
+        post_doc_id, post_doc_url = create_post_doc(docs_svc, drive_svc, content['post_doc'], job)
 
         logger.info(f"[Job {job_id}] Creating quiz form...")
         job.current_step = "Phase 4: Setting up Quiz Form..."

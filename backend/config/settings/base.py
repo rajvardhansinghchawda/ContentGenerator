@@ -129,6 +129,12 @@ CELERY_TASK_SERIALIZER   = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE          = 'UTC'
 CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=False)
+CELERY_BROKER_USE_SSL = {
+    'ssl_cert_reqs': 'none'
+}
+CELERY_REDIS_BACKEND_USE_SSL = {
+    'ssl_cert_reqs': 'none'
+}
 
 
 FRONTEND_URL = env('FRONTEND_URL', default='http://localhost:5173')

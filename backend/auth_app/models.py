@@ -29,6 +29,17 @@ class Teacher(AbstractBaseUser, PermissionsMixin):
     full_name     = models.CharField(max_length=255, blank=True)
     google_id     = models.CharField(max_length=255, unique=True, null=True, blank=True)
     profile_pic   = models.URLField(blank=True)
+    department    = models.CharField(max_length=255, blank=True)
+    institution   = models.CharField(max_length=255, blank=True, default="Prestige Institute of Engineering, Management and Research, Indore")
+    header_image_id = models.CharField(max_length=255, blank=True, help_text="Google Drive file ID for the header logo")
+    footer_image_id = models.CharField(max_length=255, blank=True, help_text="Google Drive file ID for the footer logo")
+    
+    # Defaults for form pre-filling
+    default_session  = models.CharField(max_length=100, blank=True)
+    default_semester = models.CharField(max_length=50, blank=True)
+    default_subject_name = models.CharField(max_length=255, blank=True)
+    default_subject_code = models.CharField(max_length=50, blank=True)
+
     _access_token  = models.TextField(blank=True, db_column='access_token')
     _refresh_token = models.TextField(blank=True, db_column='refresh_token')
     token_expiry   = models.DateTimeField(null=True, blank=True)

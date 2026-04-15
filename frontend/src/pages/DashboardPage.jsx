@@ -5,6 +5,7 @@ import { createJob, logout } from '../services/api.js'
 import GenerationForm from '../components/GenerationForm.jsx'
 import JobStatusCard from '../components/JobStatusCard.jsx'
 import JobHistoryList from '../components/JobHistoryList.jsx'
+import ProfileSettings from '../components/ProfileSettings.jsx'
 import './DashboardPage.css'
 
 export default function DashboardPage() {
@@ -13,6 +14,7 @@ export default function DashboardPage() {
   const [activeJobId, setActiveJobId] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [historyRefresh, setHistoryRefresh] = useState(0)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
   const handleFormSubmit = async (formData) => {
     setIsGenerating(true)
@@ -71,14 +73,10 @@ export default function DashboardPage() {
             <span className="material-icons-outlined">library_books</span>
             Lecture Library
           </a>
-          <a href="#" className="sidebar-nav-item disabled">
-            <span className="material-icons-outlined">analytics</span>
-            Knowledge Stream
-          </a>
-          <a href="#" className="sidebar-nav-item disabled">
+          <button onClick={() => setIsSettingsOpen(true)} className="sidebar-nav-item btn-sidebar">
             <span className="material-icons-outlined">settings_suggest</span>
             Settings
-          </a>
+          </button>
         </nav>
 
         <div className="sidebar-footer">
@@ -154,6 +152,11 @@ export default function DashboardPage() {
             <JobHistoryList refreshTrigger={historyRefresh} />
           </section>
         </div>
+
+        <ProfileSettings 
+          isOpen={isSettingsOpen} 
+          onClose={() => setIsSettingsOpen(false)} 
+        />
       </main>
     </div>
   )

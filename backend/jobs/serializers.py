@@ -12,7 +12,7 @@ class SubjectSerializer(serializers.ModelSerializer):
 class JobCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Job
-        fields = ['topic', 'subtopics', 'difficulty', 'num_questions', 'marks_per_question', 'question_type', 'language', 'additional_notes', 'subject',]
+        fields = ['topic', 'subtopics', 'difficulty', 'num_questions', 'marks_per_question', 'question_type', 'language', 'additional_notes', 'subject', 'lecture_no', 'session', 'semester', 'subject_name', 'subject_code']
 
     def validate_num_questions(self, value):
         if not (1 <= value <= 100):
@@ -42,5 +42,5 @@ class JobDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Job
-        fields = ['id', 'topic', 'subtopics', 'difficulty', 'num_questions', 'marks_per_question', 'total_marks', 'question_type', 'language', 'additional_notes', 'subject', 'subject_name', 'status', 'error_message', 'pre_doc_url', 'post_doc_url', 'quiz_form_url', 'quiz_url', 'tokens_used', 'model_used', 'generation_time_sec', 'created_at', 'completed_at',]
+        fields = ['id', 'topic', 'subtopics', 'difficulty', 'num_questions', 'marks_per_question', 'total_marks', 'question_type', 'language', 'additional_notes', 'subject', 'subject_name', 'subject_code', 'status', 'error_message', 'pre_doc_url', 'post_doc_url', 'quiz_form_url', 'quiz_url', 'tokens_used', 'model_used', 'generation_time_sec', 'created_at', 'completed_at', 'lecture_no', 'session', 'semester']
         read_only_fields = fields

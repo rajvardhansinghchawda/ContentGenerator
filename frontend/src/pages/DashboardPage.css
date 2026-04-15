@@ -75,6 +75,11 @@
   color: var(--on-surface-variant);
   text-decoration: none;
   transition: all var(--transition-fast);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
 }
 
 .sidebar-nav-item:hover:not(.disabled):not(.active) {
