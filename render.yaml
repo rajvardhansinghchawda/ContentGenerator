@@ -5,7 +5,8 @@ services:
     plan: free
     runtime: python
     buildCommand: "./build.sh"
-    startCommand: "gunicorn config.wsgi:application --timeout 180 --workers 1 --threads 4"
+    startCommand: "gunicorn config.wsgi:application --timeout 300 --workers 1 --threads 4"
+
 
 
     rootDir: backend

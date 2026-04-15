@@ -67,9 +67,10 @@ AUTH_USER_MODEL = 'auth_app.Teacher'
 
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 86400 * 7  # 7 days
-SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax' if DEBUG else 'None'
 SESSION_COOKIE_SECURE = not DEBUG
+SESSION_COOKIE_HTTPONLY = True
+
 
 CSRF_COOKIE_SAMESITE = 'Lax' if DEBUG else 'None'
 CSRF_COOKIE_SECURE = not DEBUG
@@ -87,13 +88,17 @@ REST_FRAMEWORK = {
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://frontend-jugaadu.onrender.com',
 ])
+
 CORS_ALLOW_CREDENTIALS = True
 
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[
     'http://localhost:5173',
     'http://127.0.0.1:5173',
+    'https://frontend-jugaadu.onrender.com',
 ])
+
 
 # Google OAuth
 GOOGLE_CLIENT_ID     = env('GOOGLE_CLIENT_ID', default='')
