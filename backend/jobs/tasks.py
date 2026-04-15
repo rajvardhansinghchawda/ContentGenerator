@@ -53,15 +53,26 @@ def generate_content_task(self, job_id: str):
             raise PermissionError("Safety Check Failed: The provided topic or instructions violated our content policy.")
 
         # ── Step 2: Phase 1 - Generate Docs ────────────────────────
-        
+        # Use a high-quality model for notes
         logger.info(f"[Job {job_id}] Calling Groq Phase 1 (Docs)...")
         docs_prompt = build_docs_prompt(job)
-        docs_res = call_groq(docs_prompt['system'], docs_prompt['user'])
+        docs_res = call_groq(
+            docs_prompt['system'], 
+            docs_prompt['user'], 
+            preferred_model='llama-3.3-70b-versatile',
+            max_tokens=2500
+        )
         
         # ── Step 2.5: Phase 2 - Generate Quiz ──────────────────────
+        # Use the "instant" model for the large quiz array
         logger.info(f"[Job {job_id}] Calling Groq Phase 2 (Quiz)...")
         quiz_prompt = build_quiz_prompt(job)
-        quiz_res = call_groq(quiz_prompt['system'], quiz_prompt['user'])
+        quiz_res = call_groq(
+            quiz_prompt['system'], 
+            quiz_prompt['user'], 
+            preferred_model='llama-3.1-8b-instant',
+            max_tokens=3500
+        )
 
         # Merge results
         content = {

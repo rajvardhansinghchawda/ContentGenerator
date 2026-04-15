@@ -1,5 +1,6 @@
 """
 GroqAIAgent — Calls the Groq API and returns parsed content.
+Includes Model Rotation and Phase-Based Quota Management.
 """
 import json
 import logging
@@ -11,11 +12,19 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+# Primary models for rotation on the Free Tier
+DEFAULT_MODEL_POOL = [
+    'llama-3.1-8b-instant',
+    'llama-3.3-70b-versatile',
+    'mixtral-8x7b-32768',
+    'gemma2-9b-it',
+]
+
 FALLBACK_MODEL = 'llama-3.1-8b-instant'
 GROQ_CHAT_COMPLETIONS_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 
-def _call_groq_http(system_prompt: str, user_prompt: str, model: str, max_tokens: int = 4096) -> dict:
+def _call_groq_http(system_prompt: str, user_prompt: str, model: str, max_tokens: int = 3500) -> dict:
     payload = {
         'model': model,
         'messages': [
@@ -42,22 +51,31 @@ def _call_groq_http(system_prompt: str, user_prompt: str, model: str, max_tokens
         return json.loads(body)
 
 
-def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dict:
+def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 5, preferred_model: str = None, max_tokens: int = 3500) -> dict:
     """
-    Calls Groq API with retry logic. Returns parsed JSON dict.
-    Raises ValueError if content cannot be parsed after retries.
+    Calls Groq API with Model Rotation and retry logic.
+    If a 429 Rate Limit hit, switches to the next available model in the pool.
     """
     if not settings.GROQ_API_KEY:
         raise ValueError('GROQ_API_KEY is not configured.')
 
-    model = settings.GROQ_MODEL
+    # Determine model order: preferred first, then the rest of the pool
+    pool = list(DEFAULT_MODEL_POOL)
+    if preferred_model and preferred_model in pool:
+        pool.remove(preferred_model)
+        pool = [preferred_model] + pool
+    elif preferred_model:
+        pool = [preferred_model] + pool
+
+    current_model_idx = 0
     last_error = None
     
     for attempt in range(max_retries):
+        model = pool[current_model_idx % len(pool)]
         try:
-            logger.info(f"Groq API call attempt {attempt + 1} with model {model}")
+            logger.info(f"Groq API call attempt {attempt + 1} using model: {model}")
 
-            response = _call_groq_http(system_prompt, user_prompt, model, max_tokens=3500)
+            response = _call_groq_http(system_prompt, user_prompt, model, max_tokens=max_tokens)
             raw_text = (response.get('choices', [{}])[0].get('message', {}).get('content', '') or '').strip()
             tokens_used = (response.get('usage') or {}).get('total_tokens')
 
@@ -74,9 +92,9 @@ def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dic
             
         except json.JSONDecodeError as e:
             last_error = f"JSON parse error: {e}"
-            logger.warning(f"Attempt {attempt + 1} failed: {last_error}")
+            logger.warning(f"Attempt {attempt + 1} failed with {model}: {last_error}")
             if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)  # exponential backoff
+                time.sleep(2)
 
         except HTTPError as e:
             try:
@@ -85,70 +103,44 @@ def call_groq(system_prompt: str, user_prompt: str, max_retries: int = 3) -> dic
                 err_body = ''
             last_error = f"HTTP {e.code}: {err_body or e.reason}"
 
-            # Cloudflare 1010 is an access-control denial (region/network/account policy),
-            # and retrying will not help.
             if e.code == 403 and '1010' in last_error:
-                raise PermissionError(
-                    'Groq access denied (HTTP 403 / code 1010). '
-                    'This is typically a region/network restriction or key/account policy block. '
-                    'Use a permitted network/API key or switch provider.'
-                )
+                raise PermissionError('Groq access denied (HTTP 403 / code 1010). Check region/network.')
 
-            logger.warning(f"Attempt {attempt + 1} failed: {last_error}")
+            logger.warning(f"Attempt {attempt + 1} failed with {model}: {last_error}")
             
-            # Handle rate limit specifically
+            # Handle rate limit by ROTATING models
             if e.code == 429:
-                logger.info(f"Rate limit hit. Waiting 6 seconds...")
-                time.sleep(6) # Free tier TPM reset is usually quick
-            elif attempt == 1 and model != FALLBACK_MODEL:
-                model = FALLBACK_MODEL
-                logger.info(f"Switching to fallback model: {FALLBACK_MODEL}")
+                current_model_idx += 1
+                next_model = pool[current_model_idx % len(pool)]
+                logger.info(f"Rate limit hit on {model}. Rotating to {next_model}...")
+                time.sleep(2) # Short wait before trying next model
             elif attempt < max_retries - 1:
                 time.sleep(2 ** attempt)
 
-        except URLError as e:
-            last_error = f"Network error: {e.reason}"
-            logger.warning(f"Attempt {attempt + 1} failed: {last_error}")
-            if attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
-                
         except Exception as e:
             last_error = str(e)
-            logger.warning(f"Attempt {attempt + 1} failed: {last_error}")
-            # Try fallback model on second attempt
-            if attempt == 1 and model != FALLBACK_MODEL:
-                model = FALLBACK_MODEL
-                logger.info(f"Switching to fallback model: {FALLBACK_MODEL}")
-            elif attempt < max_retries - 1:
-                time.sleep(2 ** attempt)
+            logger.warning(f"Attempt {attempt + 1} failed with {model}: {last_error}")
+            if attempt < max_retries - 1:
+                current_model_idx += 1 # Try next model anyway for stability
+                time.sleep(2)
     
-    raise ValueError(f"Groq API failed after {max_retries} attempts. Last error: {last_error}")
+    raise ValueError(f"Groq API failed after {max_retries} attempts with rotation. Last error: {last_error}")
 
 
 def verify_prompt_safety(text: str) -> bool:
-    """
-    Uses llama-prompt-guard-2-22m to check if a prompt is malicious.
-    Returns True if benign, False if malicious.
-    """
+    """Uses llama-prompt-guard-2-22m for a safe check."""
     if not settings.GROQ_API_KEY:
-        return True # Fallback to true if not configured
-
-    model = "llama-prompt-guard-2-22m"
+        return True
     try:
-        # Prompt guard doesn't strictly need a system prompt, we just send the user content
         response = _call_groq_http(
             system_prompt="You are a safety classifier.", 
             user_prompt=text, 
-            model=model,
-            max_tokens=10 # It only returns one word
+            model="llama-prompt-guard-2-22m",
+            max_tokens=10
         )
         classification = (response.get('choices', [{}])[0].get('message', {}).get('content', '') or '').strip().lower()
-        
-        logger.info(f"Prompt safety check result: {classification}")
-        
-        # The model returns 'benign' or 'malicious'
+        logger.info(f"Safety check result: {classification}")
         return "malicious" not in classification
     except Exception as e:
         logger.error(f"Safety check failed: {e}")
-        return True # Default to allow if check fails (to avoid blocking users on API issues)
-
+        return True
