@@ -15,9 +15,10 @@ class JobCreateSerializer(serializers.ModelSerializer):
         fields = ['topic', 'subtopics', 'difficulty', 'num_questions', 'marks_per_question', 'question_type', 'language', 'additional_notes', 'subject',]
 
     def validate_num_questions(self, value):
-        if not (1 <= value <= 50):
-            raise serializers.ValidationError('Number of questions must be between 1 and 50.')
+        if not (1 <= value <= 100):
+            raise serializers.ValidationError('Number of questions must be between 1 and 100.')
         return value
+
 
     def validate_marks_per_question(self, value):
         if value <= 0:
