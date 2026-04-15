@@ -31,7 +31,8 @@ class JobStatusSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Job
-        fields = ['id', 'status', 'error_message', 'pre_doc_url', 'post_doc_url', 'quiz_form_url', 'quiz_url', 'generation_time_sec', 'tokens_used']
+        fields = ['id', 'status', 'error_message', 'pre_doc_url', 'post_doc_url', 'quiz_form_url', 'quiz_url', 'generation_time_sec', 'tokens_used', 'current_step']
+
 
 
 class JobDetailSerializer(serializers.ModelSerializer):

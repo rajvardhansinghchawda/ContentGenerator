@@ -109,7 +109,14 @@ export default function JobHistoryList({ refreshTrigger }) {
                       <span className="material-icons-outlined">calendar_today</span>
                       {formatDate(job.created_at)}
                     </span>
+                    {job.model_used && (
+                      <span className="history-model">
+                        <span className="material-icons-outlined">psychology</span>
+                        {job.model_used}
+                      </span>
+                    )}
                   </div>
+
                 </div>
                 <StatusBadge status={job.status} />
               </div>

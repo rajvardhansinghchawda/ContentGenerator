@@ -43,6 +43,9 @@ def generate_content_task(self, job_id: str):
 
     try:
         # ── Step 1: Safety Check ─────────────────────────────────
+        job.current_step = "Safety Check: Scanning topic..."
+        job.save(update_fields=['current_step'])
+
         from ai_engine.groq_client import verify_prompt_safety
         logger.info(f"[Job {job_id}] Running safety check...")
         
@@ -53,8 +56,12 @@ def generate_content_task(self, job_id: str):
             raise PermissionError("Safety Check Failed: The provided topic or instructions violated our content policy.")
 
         # ── Step 2: Phase 1 - Generate Docs ────────────────────────
+        job.current_step = "Phase 1: Generating Lecture Notes (using Mixtral)..."
+        job.save(update_fields=['current_step'])
+
         # Use a high-quality model for notes
         logger.info(f"[Job {job_id}] Calling Groq Phase 1 (Docs)...")
+
         docs_prompt = build_docs_prompt(job)
         docs_res = call_groq(
             docs_prompt['system'], 
@@ -64,6 +71,9 @@ def generate_content_task(self, job_id: str):
         )
         
         # ── Step 2.5: Phase 2 - Generate Quiz ──────────────────────
+        job.current_step = f"Phase 2: Building {job.num_questions}-Question Quiz (using Llama)..."
+        job.save(update_fields=['current_step'])
+
         # Use the "instant" model for the large quiz array
         logger.info(f"[Job {job_id}] Calling Groq Phase 2 (Quiz)...")
         quiz_prompt = build_quiz_prompt(job)
@@ -89,6 +99,9 @@ def generate_content_task(self, job_id: str):
         content = validate_content(content, job.num_questions)
 
         # ── Step 4: Push to Google ─────────────────────────────────
+        job.current_step = "Phase 3: Creating Google Documents..."
+        job.save(update_fields=['current_step'])
+
         teacher = job.teacher
         docs_svc  = build_docs_service(teacher)
         forms_svc = build_forms_service(teacher)
@@ -101,6 +114,9 @@ def generate_content_task(self, job_id: str):
         post_doc_id, post_doc_url = create_post_doc(docs_svc, drive_svc, content['post_doc'], job.topic)
 
         logger.info(f"[Job {job_id}] Creating quiz form...")
+        job.current_step = "Phase 4: Setting up Quiz Form..."
+        job.save(update_fields=['current_step'])
+
         quiz_form_id, quiz_form_url = create_quiz_form(forms_svc, drive_svc, content['quiz'])
 
         # ── Step 5: Update job ─────────────────────────────────────

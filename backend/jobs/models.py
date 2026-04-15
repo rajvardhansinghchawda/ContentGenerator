@@ -58,6 +58,8 @@ class Job(models.Model):
 
     status        = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     error_message = models.TextField(blank=True)
+    current_step  = models.CharField(max_length=255, blank=True, help_text="Current stage of generation (Docs, Quiz, etc.)")
+
 
     pre_doc_url   = models.URLField(blank=True)
     post_doc_url  = models.URLField(blank=True)

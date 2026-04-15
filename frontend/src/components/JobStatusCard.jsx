@@ -42,9 +42,13 @@ export default function JobStatusCard({ jobId, onComplete, onRetry }) {
           </p>
           <div className="status-steps">
             {STEPS.map((step, i) => {
-              const currentIdx = status.current_step?.toLowerCase().includes('ai') ? 0
-                : status.current_step?.toLowerCase().includes('doc') ? 1
-                : status.current_step?.toLowerCase().includes('quiz') ? 2 : 0
+              const currentStep = status.current_step?.toLowerCase() || ''
+              const currentIdx = currentStep.includes('safety') ? 0
+                : currentStep.includes('phase 1') ? 0
+                : currentStep.includes('phase 2') ? 0
+                : currentStep.includes('phase 3') ? 1
+                : currentStep.includes('phase 4') ? 2 : 0
+              
               const isDone = i < currentIdx
               const isActive = i === currentIdx
 
@@ -54,13 +58,19 @@ export default function JobStatusCard({ jobId, onComplete, onRetry }) {
                   className={`status-step ${isDone ? 'done' : ''} ${isActive ? 'active' : ''}`}
                 >
                   <span className="material-icons-outlined">{step.icon}</span>
-                  <span>{step.label}</span>
-                  {isDone && <span className="material-icons-outlined step-check">check_circle</span>}
+                  <div className="status-step-text">
+                    <span className="step-label">{step.label}</span>
+                    {isActive && currentStep && (
+                      <span className="step-detail">{currentStep}</span>
+                    )}
+                  </div>
+                  {isDone && <span className="material-icons-outlined step-check" style={{ color: 'var(--success)' }}>check_circle</span>}
                   {isActive && <LoadingSpinner size={16} />}
                 </div>
               )
             })}
           </div>
+
         </div>
       </div>
     )

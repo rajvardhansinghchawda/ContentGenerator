@@ -76,6 +76,24 @@
   transition: all var(--transition-normal);
 }
 
+.status-step-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-label {
+  line-height: 1.2;
+}
+
+.step-detail {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  font-weight: 400;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+
 .status-step.active {
   opacity: 1;
   color: var(--primary);
