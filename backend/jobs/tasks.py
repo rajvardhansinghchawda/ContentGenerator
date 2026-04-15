@@ -1,0 +1,104 @@
+"""
+Celery tasks for content generation.
+Main task: generate_content_task
+"""
+import logging
+import time
+
+from celery import shared_task
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=2)
+def generate_content_task(self, job_id: str):
+    """
+    Main Celery task that orchestrates the full content generation pipeline:
+    1. Build prompts
+    2. Call Groq AI
+    3. Validate content
+    4. Push to Google Docs + Forms
+    5. Update job status
+    """
+    from jobs.models import Job
+    from ai_engine.prompt_builder import build_combined_prompt
+    from ai_engine.groq_client import call_groq
+    from ai_engine.validators import validate_content
+    from google_services.auth_manager import build_docs_service, build_forms_service, build_drive_service
+    from google_services.docs_creator import create_pre_doc, create_post_doc
+    from google_services.forms_creator import create_quiz_form
+
+    try:
+        job = Job.objects.get(id=job_id)
+    except Job.DoesNotExist:
+        logger.error(f"Job {job_id} not found")
+        return
+
+    job.status = Job.STATUS_PROCESSING
+    job.save(update_fields=['status'])
+
+    start_time = time.time()
+
+    try:
+        # ── Step 1: Build prompt ───────────────────────────────────
+        logger.info(f"[Job {job_id}] Building prompt for topic: {job.topic}")
+        prompt = build_combined_prompt(job)
+
+        # ── Step 2: Call Groq AI ───────────────────────────────────
+        logger.info(f"[Job {job_id}] Calling Groq API...")
+        result = call_groq(prompt['system'], prompt['user'])
+        content = result['content']
+        tokens_used = result['tokens_used']
+        model_used = result['model_used']
+
+        # ── Step 3: Validate ───────────────────────────────────────
+        logger.info(f"[Job {job_id}] Validating content...")
+        content = validate_content(content, job.num_questions)
+
+        # ── Step 4: Push to Google ─────────────────────────────────
+        teacher = job.teacher
+        docs_svc  = build_docs_service(teacher)
+        forms_svc = build_forms_service(teacher)
+        drive_svc = build_drive_service(teacher)
+
+        logger.info(f"[Job {job_id}] Creating pre-doc...")
+        pre_doc_id, pre_doc_url = create_pre_doc(docs_svc, drive_svc, content['pre_doc'], job.topic)
+
+        logger.info(f"[Job {job_id}] Creating post-doc...")
+        post_doc_id, post_doc_url = create_post_doc(docs_svc, drive_svc, content['post_doc'], job.topic)
+
+        logger.info(f"[Job {job_id}] Creating quiz form...")
+        quiz_form_id, quiz_form_url = create_quiz_form(forms_svc, drive_svc, content['quiz'])
+
+        # ── Step 5: Update job ─────────────────────────────────────
+        elapsed = time.time() - start_time
+
+        job.status              = Job.STATUS_COMPLETED
+        job.pre_doc_id          = pre_doc_id
+        job.pre_doc_url         = pre_doc_url
+        job.post_doc_id         = post_doc_id
+        job.post_doc_url        = post_doc_url
+        job.quiz_form_id        = quiz_form_id
+        job.quiz_form_url       = quiz_form_url
+        job.tokens_used         = tokens_used
+        job.model_used          = model_used
+        job.generation_time_sec = round(elapsed, 2)
+        job.completed_at        = timezone.now()
+        job.save()
+
+        logger.info(f"[Job {job_id}] Completed in {elapsed:.1f}s")
+
+    except Exception as exc:
+        elapsed = time.time() - start_time
+        logger.error(f"[Job {job_id}] Failed after {elapsed:.1f}s: {exc}", exc_info=True)
+        job.status = Job.STATUS_FAILED
+        job.error_message = str(exc)
+        job.generation_time_sec = round(elapsed, 2)
+        job.save(update_fields=['status', 'error_message', 'generation_time_sec'])
+
+        # Permission/access-denied failures are permanent; retries only waste queue time.
+        if isinstance(exc, PermissionError):
+            return
+
+        raise self.retry(exc=exc, countdown=60)
