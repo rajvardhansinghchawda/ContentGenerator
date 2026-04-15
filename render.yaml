@@ -2,6 +2,7 @@ services:
   # 1. Django API (Backend)
   - type: web
     name: eduflow-backend
+    plan: free
     runtime: python
     buildCommand: "./build.sh"
     startCommand: "gunicorn config.wsgi:application"
@@ -10,9 +11,9 @@ services:
       - key: DEBUG
         value: "False"
       - key: DATABASE_URL
-        sync: false # User will provide Neon URL
+        sync: false
       - key: REDIS_URL
-        sync: false # User will provide Upstash URL
+        sync: false
       - key: SECRET_KEY
         generateValue: true
       - key: GOOGLE_CLIENT_ID
@@ -20,56 +21,21 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_REDIRECT_URI
-        sync: false # e.g., https://eduflow-backend.onrender.com/api/auth/google/callback/
+        sync: false
       - key: GROQ_API_KEY
         sync: false
       - key: TOKEN_ENCRYPTION_KEY
         sync: false
       - key: FRONTEND_URL
-        sync: false # e.g., https://eduflow-frontend.onrender.com
+        sync: false
       - key: ALLOWED_HOSTS
-        value: "*" # Or specific backend host
+        value: "*"
       - key: CORS_ALLOWED_ORIGINS
-        sync: false # Should match frontend URL
+        sync: false
+      - key: CELERY_TASK_ALWAYS_EAGER
+        value: "True" # Run tasks synchronously since we have no separate worker
 
-  # 2. Celery Worker
-  - type: worker
-    name: eduflow-worker
-    runtime: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "celery -A config worker -l info"
-    rootDir: backend
-    envVars:
-      - fromService:
-          type: web
-          name: eduflow-backend
-          envVarKey: DATABASE_URL
-      - fromService:
-          type: web
-          name: eduflow-backend
-          envVarKey: REDIS_URL
-      - fromService:
-          type: web
-          name: eduflow-backend
-          envVarKey: SECRET_KEY
-      - fromService:
-          type: web
-          name: eduflow-backend
-          envVarKey: GROQ_API_KEY
-      - fromService:
-          type: web
-          name: eduflow-backend
-          envVarKey: TOKEN_ENCRYPTION_KEY
-      - fromService:
-          type: web
-          name: eduflow-backend
-          envVarKey: GOOGLE_CLIENT_ID
-      - fromService:
-          type: web
-          name: eduflow-backend
-          envVarKey: GOOGLE_CLIENT_SECRET
-
-  # 3. React Frontend (Vite)
+  # 2. React Frontend (Vite)
   - type: static_site
     name: eduflow-frontend
     runtime: node
