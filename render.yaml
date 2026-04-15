@@ -38,7 +38,6 @@ services:
   # 2. React Frontend (Vite)
   - type: static_site
     name: eduflow-frontend
-    runtime: node
     buildCommand: "npm install && npm run build"
     publishDir: dist
     rootDir: frontend
