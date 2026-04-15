@@ -63,15 +63,17 @@ class GoogleCallbackView(APIView):
             
             expiry = credentials.expiry.replace(tzinfo=timezone.utc) if credentials.expiry else None
             
-            teacher, _ = Teacher.objects.update_or_create(
-                email=email, 
-                defaults={
-                    'google_id': user_info.get('id'), 
-                    'full_name': user_info.get('name', ''), 
-                    'profile_pic': user_info.get('picture', ''),
-                    'token_expiry': expiry
-                }
-            )
+            teacher, created = Teacher.objects.get_or_create(email=email)
+            
+            # Update core identifies and credentials
+            teacher.google_id = user_info.get('id')
+            teacher.token_expiry = expiry
+            
+            # Only set name/pic if they are currently empty (first time or never set)
+            if not teacher.full_name:
+                teacher.full_name = user_info.get('name', '')
+            if not teacher.profile_pic:
+                teacher.profile_pic = user_info.get('picture', '')
             
             teacher._access_token = encrypt_token(credentials.token or '')
             if credentials.refresh_token:

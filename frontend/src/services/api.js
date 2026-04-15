@@ -19,9 +19,13 @@ function getCookie(name) {
 }
 
 api.interceptors.request.use((config) => {
-  const csrfToken = getCookie('csrftoken')
-  if (csrfToken) {
-    config.headers['X-CSRFToken'] = csrfToken
+  // Only send CSRF token for unsafe methods (POST, PATCH, PUT, DELETE)
+  const unsafeMethods = ['post', 'patch', 'put', 'delete']
+  if (unsafeMethods.includes(config.method?.toLowerCase())) {
+    const csrfToken = getCookie('csrftoken')
+    if (csrfToken) {
+      config.headers['X-CSRFToken'] = csrfToken
+    }
   }
   return config
 })
