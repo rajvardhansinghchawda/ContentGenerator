@@ -1,8 +1,9 @@
 import logging
 from datetime import timezone
-
 from django.conf import settings
 from django.shortcuts import redirect
+from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -33,15 +34,21 @@ def _build_flow():
     return Flow.from_client_config(client_config, scopes=settings.GOOGLE_SCOPES, redirect_uri=settings.GOOGLE_REDIRECT_URI)
 
 
+@method_decorator(csrf_exempt, name='dispatch')
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        flow = _build_flow()
-        auth_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='consent')
-        request.session['oauth_state'] = state
-        # Keep both keys for backward compatibility with different frontend builds.
-        return Response({'auth_url': auth_url, 'url': auth_url})
+        logger.info(f"GoogleLoginView.get called. Session ID: {request.session.session_key}")
+        try:
+            flow = _build_flow()
+            auth_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='consent')
+            request.session['oauth_state'] = state
+            logger.info(f"Generated auth_url. State saved to session: {state}")
+            return Response({'auth_url': auth_url, 'url': auth_url})
+        except Exception as e:
+            logger.error(f"Error in GoogleLoginView: {e}", exc_info=True)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class GoogleCallbackView(APIView):

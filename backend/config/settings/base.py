@@ -65,15 +65,19 @@ DATABASES = {
 
 AUTH_USER_MODEL = 'auth_app.Teacher'
 
+# Session & Cookie settings
 SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 SESSION_COOKIE_AGE = 86400 * 7  # 7 days
+
+# FOR CROSS-DOMAIN AUTH (React on one domain, Django on another):
+# In production (DEBUG=False), we MUST use SameSite=None and Secure=True
 SESSION_COOKIE_SAMESITE = 'Lax' if DEBUG else 'None'
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 
-
 CSRF_COOKIE_SAMESITE = 'Lax' if DEBUG else 'None'
 CSRF_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_HTTPONLY = False  # Set to False if you want to read it from JS, but our Axios interceptor uses it.
 
 
 REST_FRAMEWORK = {
@@ -85,19 +89,23 @@ REST_FRAMEWORK = {
     ],
 }
 
-CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
+# CORS & CSRF
+CORS_ALLOWED_ORIGIN_LIST = env.list('CORS_ALLOWED_ORIGINS', default=[
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'https://frontend-jugaadu.onrender.com',
 ])
+# Normalize origins (remove trailing slashes)
+CORS_ALLOWED_ORIGINS = [origin.rstrip('/') for origin in CORS_ALLOWED_ORIGIN_LIST]
 
 CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[
+CSRF_TRUSTED_ORIGIN_LIST = env.list('CSRF_TRUSTED_ORIGINS', default=[
     'http://localhost:5173',
     'http://127.0.0.1:5173',
     'https://frontend-jugaadu.onrender.com',
 ])
+CSRF_TRUSTED_ORIGINS = [origin.rstrip('/') for origin in CSRF_TRUSTED_ORIGIN_LIST]
 
 
 # Google OAuth

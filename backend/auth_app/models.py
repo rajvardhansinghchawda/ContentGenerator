@@ -45,6 +45,7 @@ class Teacher(AbstractBaseUser, PermissionsMixin):
     token_expiry   = models.DateTimeField(null=True, blank=True)
     is_active  = models.BooleanField(default=True)
     is_staff   = models.BooleanField(default=False)
+    is_profile_setup = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     objects = TeacherManager()
