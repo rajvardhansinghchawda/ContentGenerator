@@ -37,6 +37,7 @@ def _build_flow():
 @method_decorator(csrf_exempt, name='dispatch')
 class GoogleLoginView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get(self, request):
         logger.info(f"GoogleLoginView.get called. Session ID: {request.session.session_key}")
@@ -53,6 +54,7 @@ class GoogleLoginView(APIView):
 
 class GoogleCallbackView(APIView):
     permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get(self, request):
         code = request.GET.get('code')
