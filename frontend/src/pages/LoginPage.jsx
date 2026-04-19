@@ -10,6 +10,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [redirecting, setRedirecting] = useState(false)
+  const [statusError, setStatusError] = useState(null)
   const errorParam = searchParams.get('error')
 
   useEffect(() => {
@@ -20,13 +21,16 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setRedirecting(true)
+    setStatusError(null)
     try {
       const res = await getGoogleLoginUrl()
       const authUrl = res.data?.url || res.data?.auth_url
-      if (!authUrl) throw new Error('Missing OAuth URL in response')
+      if (!authUrl) throw new Error('Could not get login URL from backend.')
       window.location.href = authUrl
-    } catch {
+    } catch (err) {
+      console.error('Google login error:', err)
       setRedirecting(false)
+      setStatusError(err.response?.data?.error || err.message || 'Network error — please check your internet.')
     }
   }
 
@@ -86,12 +90,12 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {errorParam && (
+          {(errorParam || statusError) && (
             <div className="login-error" role="alert">
               <span className="material-icons-outlined">error_outline</span>
-              {errorParam === 'auth_failed'
+              {statusError || (errorParam === 'auth_failed'
                 ? 'Authentication failed. Please try again.'
-                : decodeURIComponent(errorParam)}
+                : decodeURIComponent(errorParam))}
             </div>
           )}
 
