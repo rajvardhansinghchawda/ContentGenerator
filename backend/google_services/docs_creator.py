@@ -19,7 +19,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     teacher = job.teacher
 
     # Professional Color (Navy Blue)
-    BLUE_COLOR = {'color': {'rgbColor': {'red': 0.12, 'green': 0.23, 'blue': 0.54}}}
+    BLUE_COLOR = {'foregroundColor': {'color': {'rgbColor': {'red': 0.12, 'green': 0.23, 'blue': 0.54}}}}
 
     # ── Step 1: Create Header/Footer zones ──────────────────────────────────
     header_id = ""

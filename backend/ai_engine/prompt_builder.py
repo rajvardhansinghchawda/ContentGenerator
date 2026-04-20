@@ -88,30 +88,31 @@ Number of quiz questions: {job.num_questions}
 Marks per question: {float(job.marks_per_question)}
 Question type: {job.question_type}
 
-Return ONLY this JSON structure (no markdown, no extra text):
-{{
-  "quiz": {{
-    "title": "Quiz: {job.topic}",
-    "total_marks": {int(job.num_questions * float(job.marks_per_question))},
-    "questions": [
-      {{
-        "question_text": "Question text here?",
-        "type": "{job.question_type if job.question_type != 'MIXED' else 'MCQ'}",
-        "options": ["A) Option A", "B) Option B", "C) Option C", "D) Option D"],
-        "correct_answer": "B",
-        "explanation": "Why B is correct",
-        "marks": {float(job.marks_per_question)}
+    return ONLY this JSON structure (no markdown, no extra text):
+    {{
+      "quiz": {{
+        "title": "Quiz: {job.topic}",
+        "total_marks": {int(job.num_questions * float(job.marks_per_question))},
+        "questions": [
+          {{
+            "question_text": "Question text here?",
+            "type": "{job.question_type if job.question_type != 'MIXED' else 'MCQ'}",
+            "options": ["Option 1 text", "Option 2 text", "Option 3 text", "Option 4 text"],
+            "correct_answer": "Option 2 text",
+            "explanation": "Why Option 2 is correct",
+            "marks": {float(job.marks_per_question)}
+          }}
+        ]
       }}
-    ]
-  }}
-}}
+    }}
 
-Ensure the quiz has exactly {job.num_questions} questions. NO MORE, NO LESS. 
-CRITICAL: You MUST provide exactly {job.num_questions} question objects in the 'questions' array.
-For MCQ questions, include exactly 4 options. 
-CRITICAL: Do not always make the first option (A) the correct answer. Randomize the position of the correct answer (A, B, C, or D) across all questions.
-For SHORT questions, set options to [] and correct_answer to a brief answer string.
-Do not use any emojis in the content generation."""
+    Ensure the quiz has exactly {job.num_questions} questions. NO MORE, NO LESS. 
+    CRITICAL: You MUST provide exactly {job.num_questions} question objects in the 'questions' array.
+    For MCQ questions, include exactly 4 options. 
+    CRITICAL: DO NOT include prefixes like 'A) ', 'B) ', '1. ', etc. in the options. Provide only the text of the option.
+    CRITICAL: The 'correct_answer' field MUST contain the EXACT text of one of the options (for MCQ).
+    For SHORT questions, set options to [] and correct_answer to a brief answer string.
+    Do not use any emojis in the content generation."""
 
     return {"system": _get_system_prompt(), "user": user_prompt}
 

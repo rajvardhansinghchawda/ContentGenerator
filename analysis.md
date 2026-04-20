@@ -1,0 +1,75 @@
+# Eduflow Backend Project Analysis
+
+## 1. Overview
+Eduflow is an AI-powered automation platform designed for educators. Its primary purpose is to automatically generate educational resources—including pre-lecture notes, post-lecture summaries, and quizzes—and then seamlessly compose and format these assets into Google Docs and Google Forms.
+
+By automating the curriculum development pipeline, it limits the manual administrative overhead placed on teachers, allowing them to focus more intensely on delivering educational value.
+
+## 2. Core Workflow & Operations
+1. **Authentication**: Teachers log in using Google OAuth. This provisions Eduflow with access tokens to manage the teacher's Google Drive, Google Docs, and Google Forms safely.
+2. **Branding Assets Setup**: Teachers can upload header and footer images. These are uploaded seamlessly to the teacher's Google Drive and are automatically embedded into all subsequently generated documents.
+3. **Job Scheduling**: The teacher requests a lecture plan by providing a topic and additional notes via the UI. This triggers the creation of an asynchronous `Job` object.
+4. **AI Processing (Phase 1 & Phase 2)**: 
+   - Uses the **Groq API** to communicate with ultra-fast, open-source models (e.g., `llama-3.3-70b-versatile` and `llama-3.1-8b-instant`).
+   - Generates structured JSON responses for pre/post-lecture notes, learning outcomes, definitions, and practice quizzes.
+5. **Validation**: The AI textual responses are mapped and validated to ensure they conform to rigid JSON schemas (e.g., verifying the returned quiz matches the requested number of questions).
+6. **Google Workspace Integration (Phase 3 & Phase 4)**:
+   - Eduflow creates native Google Docs by programmatically applying a customized professional template (complete with navy blue metadata tables, headers, and footers).
+   - It also creates interactive Google Forms for quizzes, complete with correct answers and automated grading setups.
+7. **Delivery & Feedback**: The background job concludes, saving the Google Docs and Forms IDs to the database. The teacher receives direct, editable links to the generated documents through the user interface.
+
+## 3. Architecture & Technology Stack
+- **Framework**: Django REST Framework (Python)
+- **Database**: PostgreSQL (handling persistent storage for Users and Jobs)
+- **Asynchronous Task Queue**: Celery acting as the task executor, backed by Redis for message brokering. This offloads the slow HTTP requests (LLM calls and Google API writes).
+- **LLM Provider**: Groq API.
+- **External Integrations**: Google Workspace APIs (Google OAuth2 v2, Drive v3, Docs v1, Forms v1).
+- **Deployment & Infrastructure**: Configured for Render deployment (`render.yaml`, `build.sh`) leveraging WhiteNoise for serving Django's static files.
+
+## 4. App Modules and File Breakdown
+
+### 4.1. `auth_app` (Authentication & Users)
+**Purpose**: Manages the complete lifecycle of users (Teachers), Google OAuth login flow, and session persistence.
+- **`models.py`**: Defines the `Teacher` model. It stores OAuth credentials (`_access_token`, `_refresh_token`), branding preferences (`header_image_id`, `footer_image_id`), and default school profiles (institution, department, session, semester).
+- **`views.py`**: 
+  - `GoogleLoginView` & `GoogleCallbackView`: Handles the OAuth2 handshakes, creates Google API service objects, and persists user data cleanly.
+  - `MeView`: Retrieves and updates the currently logged-in teacher's static profile variables.
+  - `AssetUploadView`: Takes an uploaded image, dynamically builds the Google Drive API client using the teacher's stored token, uploads the image to root Drive, and marks it as visually accessible to 'anyone' to ensure the Docs API can embed the URI footprint.
+- **`token_utils.py`**: Utilizes the `cryptography` package framework (`Fernet`) to securely encrypt the OAuth tokens natively in the PostgreSQL database, protecting user credentials at rest.
+- **`authentication.py`**: Custom Rest Framework authentication class to bridge Django session states to Django REST access control.
+
+### 4.2. `ai_engine` (Smart Content Generation)
+**Purpose**: Responsible for isolated interactions with the Groq interface and sanitizing generative text.
+- **`groq_client.py`**: 
+  - Provides core integration with Groq via low-level `urllib` HTTP requests.
+  - **Dynamic Model Rotation / Rate Limit Handling**: It catches `HTTP 429` (Rate limits) dynamically and attempts to retry the prompt using alternative LLMs provided in an internal fallback array.
+  - **Malicious Content Prevention**: Incorporates `verify_prompt_safety`, calling specialized guard models (like `llama-guard`) to pre-emptively scrub unsafe user submissions.
+- **`prompt_builder.py`**: Implements massive System Prompts tailored specifically to format notes vs. quizzes into JSON responses without preamble.
+- **`validators.py`**: Fixes common schema inconsistencies generated by lower-tier LLMs to ensure dict structures match backend requirements smoothly before sending them to Google.
+
+### 4.3. `google_services` (Google Workspace Engine)
+**Purpose**: The bridging module enabling backend control over Google Docs and Forms capabilities.
+- **`auth_manager.py`**: Exposes utility functions (`build_docs_service`, `build_forms_service`) that decrypt the Teacher's tokens, implicitly refresh them if expired, and build Google's standardized REST API wrappers.
+- **`docs_creator.py`**: Highly intricate script.
+  - Dynamically constructs a metadata info-table structure into a blank Document.
+  - Utilizes batch requests mapped with coordinate indexing (`index`, `tables`, `rows`) to inject the generated AI response string effectively.
+  - Applies paragraph alignments, bold typography, and corporate navy aesthetics sequentially using `updateParagraphStyle`.
+  - Embeds the specific user's `header_image_id` and `footer_image_id` directly in the page margins.
+- **`forms_creator.py`**: Processes the JSON quiz array. Transforms text-based questions into an interactive Google Form consisting of specific `CHOICE_QUESTION` options, evaluates point counts natively, and maps correct choices to enable "Self-Grading Quiz" experiences on Google forms.
+
+### 4.4. `jobs` (Asynchronous Job State Management)
+**Purpose**: Ensures fast response times on the frontend API by isolating complex operations to Celery background workers.
+- **`models.py`**: Stores the `Job` table (Topic, Notes, Status flags `PENDING`/`FAILED`/`COMPLETED`). Retains generated metrics (Execution time, LLM Token Count) and provides URLs to newly created assets.
+- **`tasks.py` (`generate_content_task`)**: The central nervous system of the runtime engine.
+  - Scans prompt safety (`ai_engine`).
+  - Calls Groq for Doc notes (`Phase 1`).
+  - Calls Groq for Form quizzes (`Phase 2`).
+  - Pushes Doc payloads (`Phase 3`).
+  - Converts Quiz payloads into Google Forms (`Phase 4`).
+  - Monitors runtime exceptions and saves error traces contextually.
+- **`views.py`**: Minimal wrappers for REST clients (`JobCreateView`, `JobStatusView`) to dispatch celery tasks via Redis message brokering, avoiding HTTP stalling.
+
+### 4.5. `config` (Django Runtime Initialization)
+**Purpose**: Houses environmental and network bootstrapping parameters. 
+- **`settings/base.py`**: Ingests all `.env` secrets (`GOOGLE_CLIENT_ID`, `GROQ_API_KEY`, etc.). Ties applications (`auth_app`, `jobs`) to the database layer. Configurations here strictly enforce modern CORS protocols (e.g. `CSRF_COOKIE_SAMESITE = None` and `Secure=True`) preventing cross-site scripting vulnerabilities dynamically while integrating seamlessly with local and production interfaces.
+- **`celery.py`**: Loads the Redis configuration and configures strict discovery patterns for the Celery tasks registry.

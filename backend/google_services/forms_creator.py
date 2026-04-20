@@ -24,7 +24,7 @@ def create_quiz_form(forms_service, drive_service, quiz_data: dict) -> tuple:
     form = forms_service.forms().create(body=form_body).execute()
     form_id = form['formId']
     
-    # Step 2: Enable quiz mode + add questions in one batchUpdate
+    # Step 2: Enable quiz mode
     requests = [
         {
             'updateSettings': {
@@ -33,10 +33,36 @@ def create_quiz_form(forms_service, drive_service, quiz_data: dict) -> tuple:
             }
         }
     ]
+
+    # Step 3: Add mandatory student info fields (non-graded)
+    mandatory_fields = [
+        "Name of the student",
+        "Enrollment Number",
+        "Semester",
+        "Section"
+    ]
     
+    for i, field_name in enumerate(mandatory_fields):
+        requests.append({
+            'createItem': {
+                'item': {
+                    'title': field_name,
+                    'questionItem': {
+                        'question': {
+                            'required': True,
+                            'textQuestion': {'paragraph': False}
+                        }
+                    }
+                },
+                'location': {'index': i}
+            }
+        })
+    
+    offset = len(mandatory_fields)
     questions = quiz_data.get('questions', [])
     
     for i, q in enumerate(questions):
+        idx = i + offset
         q_type = q.get('type', 'MCQ').upper()
         marks = int(q.get('marks', 1))
         options = q.get('options', [])
@@ -51,12 +77,20 @@ def create_quiz_form(forms_service, drive_service, quiz_data: dict) -> tuple:
             # Multiple choice question
             choice_options = [{'value': opt} for opt in options]
             
-            # Find correct answer option
+            # Find correct answer option - strict text matching
             correct_options = []
             for opt in options:
-                if opt.startswith(correct + ')') or opt == correct:
+                if opt == correct:
                     correct_options.append({'value': opt})
                     break
+            
+            # Fallback for old/prefixed data if text matching fails
+            if not correct_options:
+                for opt in options:
+                    if opt.startswith(correct + ')') or opt == correct:
+                        correct_options.append({'value': opt})
+                        break
+            
             if not correct_options and options:
                 correct_options = [{'value': options[0]}]
             
@@ -81,7 +115,7 @@ def create_quiz_form(forms_service, drive_service, quiz_data: dict) -> tuple:
                             }
                         }
                     },
-                    'location': {'index': i}
+                    'location': {'index': idx}
                 }
             }
         else:
@@ -98,7 +132,7 @@ def create_quiz_form(forms_service, drive_service, quiz_data: dict) -> tuple:
                             }
                         }
                     },
-                    'location': {'index': i}
+                    'location': {'index': idx}
                 }
             }
         
