@@ -88,10 +88,29 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     def cell_text_index(r, c):
         return table['tableRows'][r]['tableCells'][c]['content'][0]['startIndex']
 
+    def format_points(data, key):
+        if not data: return "N/A"
+        points = data.get(key, [])
+        if not points: return "N/A"
+        # If the points already start with numbers, don't double count
+        formatted = []
+        for i, p in enumerate(points[:5]):
+            prefix = f"{i+1}. "
+            if p.strip().startswith(prefix):
+                formatted.append(p.strip())
+            else:
+                # Remove any existing bullets or numbers if present
+                clean_p = p.lstrip('•-123456789. ')
+                formatted.append(f"{prefix}{clean_p}")
+        return "\n".join(formatted)
+
+    pre_obj = format_points(pre_doc_data, 'learning_objectives') if pre_doc_data else format_points(post_doc_data, 'learning_objectives')
+    pre_out = format_points(pre_doc_data, 'expected_outcomes') if pre_doc_data else format_points(post_doc_data, 'expected_outcomes')
+
     template_data = [
-        (7, 1, ", ".join(pre_doc_data.get('expected_outcomes', [])) if pre_doc_data else "N/A"),
+        (7, 1, pre_out),
         (7, 0, "Learning Outcomes:"),
-        (6, 1, ", ".join(pre_doc_data.get('learning_objectives', [])) if pre_doc_data else "N/A"),
+        (6, 1, pre_obj),
         (6, 0, "Learning Objectives:"),
         (5, 1, job.topic), (5, 0, "Title of the Lecture:"),
         (4, 0, f"Lecture No: {job.lecture_no}"),
@@ -230,30 +249,45 @@ def create_pre_doc(docs_service, drive_service, pre_doc_data: dict, job) -> tupl
 
     # Build rest of content (starts after the table, roughly index 300+ after filling)
     # To be safe, we'll append to the end
-    content_parts = []
-    content_parts.append(f"\n\n{title.upper()}\n")
-    content_parts.append("\n Prerequisite Knowledge\n")
+    # Build rest of content with bold headings
+    content_list = [
+        (f"\n\n{title.upper()}\n", True),
+        ("\n Prerequisite Knowledge\n", True),
+    ]
     for prereq in pre_doc_data.get('prerequisite_topics', []):
-        content_parts.append(f"• {prereq}\n")
+        content_list.append((f"• {prereq}\n", False))
     
-    content_parts.append("\n Introduction\n")
-    content_parts.append(pre_doc_data.get('introduction', '') + "\n\n")
+    content_list.append(("\n Introduction\n", True))
+    content_list.append((pre_doc_data.get('introduction', '') + "\n\n", False))
     
-    content_parts.append(" Key Concepts\n")
+    content_list.append((" Key Concepts\n", True))
     for kc in pre_doc_data.get('key_concepts', []):
-        content_parts.append(f"• {kc.get('concept', '')}: {kc.get('brief_explanation', '')}\n")
+        content_list.append((f"• {kc.get('concept', '')}: ", True))
+        content_list.append((f"{kc.get('brief_explanation', '')}\n", False))
     
-    content_parts.append("\n Pre-Reading Material\n")
-    content_parts.append(pre_doc_data.get('pre_reading_material', '') + "\n")
-    
-    full_text = "".join(content_parts)
-    
-    # Get current length to append at the end
+    content_list.append(("\n Pre-Reading Material\n", True))
+    content_list.append((pre_doc_data.get('pre_reading_material', '') + "\n", False))
+
+    # Get initial length
     doc_curr = docs_service.documents().get(documentId=doc_id).execute()
-    last_index = doc_curr['body']['content'][-1]['endIndex'] - 1
-    
-    requests = [{'insertText': {'location': {'index': last_index}, 'text': full_text}}]
-    docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
+    current_index = doc_curr['body']['content'][-1]['endIndex'] - 1
+
+    requests = []
+    for text, is_bold in content_list:
+        start = current_index
+        requests.append({'insertText': {'location': {'index': start}, 'text': text}})
+        if is_bold:
+            requests.append({
+                'updateTextStyle': {
+                    'range': {'startIndex': start, 'endIndex': start + len(text)},
+                    'textStyle': {'bold': True},
+                    'fields': 'bold'
+                }
+            })
+        current_index += len(text)
+
+    if requests:
+        docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
 
     # Apply Times New Roman font to the entire document
     _apply_times_new_roman(docs_service, doc_id)
@@ -269,39 +303,53 @@ def create_post_doc(docs_service, drive_service, post_doc_data: dict, job) -> tu
     # Apply Branded Template
     _apply_professional_template(docs_service, doc_id, job, post_doc_data=post_doc_data)
 
-    content_parts = []
-    content_parts.append(f"\n\n{title.upper()}\n")
-    content_parts.append("\n Lecture Summary\n")
-    content_parts.append(post_doc_data.get('lecture_summary', '') + "\n")
+    content_list = [
+        (f"\n\n{title.upper()}\n", True),
+    ]
+    content_list.append(("\n Lecture Summary\n", True))
+    content_list.append((post_doc_data.get('lecture_summary', '') + "\n", False))
     
-    content_parts.append("\n Key Definitions & Formulas\n")
+    content_list.append(("\n Key Definitions & Formulas\n", True))
     for item in post_doc_data.get('key_formulas_or_definitions', []):
-        content_parts.append(f"• {item}\n")
+        content_list.append((f"• {item}\n", False))
     
-    content_parts.append("\n Detailed Notes\n")
+    content_list.append(("\n Detailed Notes\n", True))
     for note in post_doc_data.get('detailed_notes', []):
-        content_parts.append(f"\n{note.get('heading', '')}\n")
-        content_parts.append(note.get('content', '') + "\n")
+        content_list.append((f"\n{note.get('heading', '')}\n", True))
+        content_list.append((note.get('content', '') + "\n", False))
     
-    content_parts.append("\n Common Mistakes to Avoid\n")
+    content_list.append(("\n Common Mistakes to Avoid\n", True))
     for mistake in post_doc_data.get('common_mistakes', []):
-        content_parts.append(f"• {mistake}\n")
+        content_list.append((f"• {mistake}\n", False))
     
-    content_parts.append("\n Further Reading\n")
+    content_list.append(("\n Further Reading\n", True))
     for ref in post_doc_data.get('further_reading', []):
-        content_parts.append(f"• {ref}\n")
+        content_list.append((f"• {ref}\n", False))
     
-    content_parts.append("\n Practice Problems\n")
+    content_list.append(("\n Practice Problems\n", True))
     for i, prob in enumerate(post_doc_data.get('practice_problems', []), 1):
-        content_parts.append(f"{i}. {prob}\n")
+        content_list.append((f"{i}. {prob}\n", False))
 
-    full_text = "".join(content_parts)
-    
+    # Get initial length
     doc_curr = docs_service.documents().get(documentId=doc_id).execute()
-    last_index = doc_curr['body']['content'][-1]['endIndex'] - 1
-    
-    requests = [{'insertText': {'location': {'index': last_index}, 'text': full_text}}]
-    docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
+    current_index = doc_curr['body']['content'][-1]['endIndex'] - 1
+
+    requests = []
+    for text, is_bold in content_list:
+        start = current_index
+        requests.append({'insertText': {'location': {'index': start}, 'text': text}})
+        if is_bold:
+            requests.append({
+                'updateTextStyle': {
+                    'range': {'startIndex': start, 'endIndex': start + len(text)},
+                    'textStyle': {'bold': True},
+                    'fields': 'bold'
+                }
+            })
+        current_index += len(text)
+
+    if requests:
+        docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
 
     # Apply Times New Roman font to the entire document
     _apply_times_new_roman(docs_service, doc_id)

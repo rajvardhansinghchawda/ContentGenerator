@@ -70,17 +70,18 @@ Return ONLY this JSON structure (no markdown, no extra text):
 {{
   "pre_doc": {{
     "title": "Pre-Lecture Notes: {job.topic}",
-    "learning_objectives": ["objective 1", "objective 2", "objective 3"],
+    "learning_objectives": ["1. objective", "2. objective", "3. objective", "4. objective", "5. objective"],
     "prerequisite_topics": ["topic 1", "topic 2"],
     "introduction": "2-3 paragraph introduction to the topic",
     "key_concepts": [
       {{"concept": "Concept Name", "brief_explanation": "1-2 sentence explanation"}}
     ],
     "pre_reading_material": "2-3 paragraphs of background material students should review",
-    "expected_outcomes": ["outcome 1", "outcome 2", "outcome 3"]
+    "expected_outcomes": ["1. outcome", "2. outcome", "3. outcome", "4. outcome", "5. outcome"]
   }},
   "post_doc": {{
     "title": "Post-Lecture Notes: {job.topic}",
+    "learning_objectives": ["1. objective", "2. objective", "3. objective", "4. objective", "5. objective"],
     "lecture_summary": "3-4 paragraph comprehensive summary of the lecture",
     "detailed_notes": [
       {{"heading": "Section Heading", "content": "Detailed content for this section"}}
@@ -88,9 +89,12 @@ Return ONLY this JSON structure (no markdown, no extra text):
     "key_formulas_or_definitions": ["Definition 1: ...", "Formula 2: ..."],
     "common_mistakes": ["Mistake 1 to avoid", "Mistake 2 to avoid"],
     "further_reading": ["Reference 1", "Reference 2"],
-    "practice_problems": ["Problem 1", "Problem 2", "Problem 3", "Problem 4", "Problem 5"]
+    "practice_problems": ["Problem 1", "Problem 2", "Problem 3", "Problem 4", "Problem 5"],
+    "expected_outcomes": ["1. outcome", "2. outcome", "3. outcome", "4. outcome", "5. outcome"]
   }}
 }}
+
+CRITICAL: You MUST provide exactly 5 learning objectives and 5 expected outcomes for BOTH the pre_doc and post_doc.
 Do not use any emojis in the content generation."""
 
     return {"system": _get_system_prompt(), "user": user_prompt}
