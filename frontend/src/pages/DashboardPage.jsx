@@ -60,16 +60,16 @@ export default function DashboardPage() {
           </div>
           <div>
             <div className="sidebar-brand">EduFlow AI</div>
-            <div className="label-sm">Digital Curator</div>
+            <div className="label-sm">Digital Creator</div>
           </div>
         </div>
 
         <nav className="sidebar-nav" aria-label="Main navigation">
-          <a href="#generate" className="sidebar-nav-item active">
+          <a href="#generate" className="sidebar-nav-item active" onClick={() => setIsSettingsOpen(false)}>
             <span className="material-icons-outlined">add_circle</span>
             Generate
           </a>
-          <a href="#history" className="sidebar-nav-item">
+          <a href="#history" className="sidebar-nav-item" onClick={() => setIsSettingsOpen(false)}>
             <span className="material-icons-outlined">library_books</span>
             Lecture Library
           </a>
@@ -158,6 +158,22 @@ export default function DashboardPage() {
           onClose={() => setIsSettingsOpen(false)} 
         />
       </main>
+
+      {/* ── Mobile Navigation (Bottom) ── */}
+      <nav className="mobile-nav">
+        <a href="#generate" className="mobile-nav-item active" onClick={() => setIsSettingsOpen(false)}>
+          <span className="material-icons-outlined">add_circle</span>
+          <span>Generate</span>
+        </a>
+        <a href="#history" className="mobile-nav-item" onClick={() => setIsSettingsOpen(false)}>
+          <span className="material-icons-outlined">library_books</span>
+          <span>Library</span>
+        </a>
+        <button onClick={() => setIsSettingsOpen(true)} className="mobile-nav-item">
+          <span className="material-icons-outlined">settings_suggest</span>
+          <span>Settings</span>
+        </button>
+      </nav>
     </div>
   )
 }

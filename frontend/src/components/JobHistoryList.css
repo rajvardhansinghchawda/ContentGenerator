@@ -109,3 +109,31 @@
   gap: var(--space-sm);
   flex-wrap: wrap;
 }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .history-header {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .history-item {
+    padding: var(--space-md);
+  }
+
+  .history-item-main {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  .history-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .history-actions .btn {
+    flex: 1;
+    font-size: 0.75rem;
+    padding: 8px 12px;
+  }
+}

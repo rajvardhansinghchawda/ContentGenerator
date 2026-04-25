@@ -504,3 +504,37 @@ h1, h2, h3, h4, h5, h6 {
   white-space: nowrap;
   border: 0;
 }
+
+/* ── Responsive Rules ── */
+@media (max-width: 768px) {
+  :root {
+    --space-3xl: 40px;
+    --space-4xl: 64px;
+  }
+
+  html {
+    font-size: 15px;
+  }
+
+  .display-lg { font-size: 2.5rem; }
+  .display-md { font-size: 2rem; }
+  .headline-lg { font-size: 1.5rem; }
+
+  .btn {
+    padding: 10px 20px;
+  }
+
+  .card {
+    padding: var(--space-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  :root {
+    --space-xl: 24px;
+    --space-lg: 16px;
+  }
+
+  .display-lg { font-size: 2.125rem; }
+  .display-md { font-size: 1.75rem; }
+}

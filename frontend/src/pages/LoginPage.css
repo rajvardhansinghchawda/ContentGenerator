@@ -252,13 +252,35 @@
   }
 
   .login-left {
-    padding: var(--space-3xl) var(--space-xl);
-    min-height: 280px;
+    padding: var(--space-2xl) var(--space-lg);
+    min-height: auto;
+  }
+
+  .login-left-content {
+    align-items: center;
+    text-align: center;
+  }
+
+  .login-logo-mark {
+    width: 48px;
+    height: 48px;
+  }
+
+  .login-tagline {
+    font-size: 1rem;
+  }
+
+  .login-feature-pills {
+    justify-content: center;
+  }
+
+  .login-quote {
+    display: none;
   }
 
   .login-right {
     padding: var(--space-xl);
     align-items: flex-start;
-    padding-top: var(--space-3xl);
+    padding-top: var(--space-xl);
   }
 }
