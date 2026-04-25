@@ -17,17 +17,33 @@ def _get_job_context(job) -> str:
     subtopics_info = ""
     if job.subtopics:
         subtopics_info = f"\nSubtopics to cover: {job.subtopics}"
-
-    notes_info = ""
-    if job.additional_notes:
-        notes_info = f"\nAdditional instructions: {job.additional_notes}"
     
     context = f"""Topic: {job.topic}{subtopics_info}
 {subject_info}
 Difficulty: {job.difficulty.capitalize()}
-Language: {job.language}
-{notes_info}"""
+Language: {job.language}"""
     return context
+
+
+def _get_notes_block(job) -> str:
+    """Returns a smart TEACHER INTENT block that guides the AI to deeply interpret and apply notes."""
+    if not job.additional_notes or not job.additional_notes.strip():
+        return ""
+    return f"""
+=====================================================================
+TEACHER'S SPECIAL INSTRUCTIONS — HIGHEST PRIORITY:
+"{job.additional_notes.strip()}"
+
+IMPORTANT — HOW TO APPLY THESE INSTRUCTIONS:
+- These are intentional style, tone, or focus directives from the teacher.
+- Even if the instruction is short or casual (e.g. "use cricket examples" or "keep it simple"), treat it as a deep intent signal.
+- You MUST intelligently interpret the spirit of this instruction and apply it EVERYWHERE:
+  * In the introduction, key concepts, explanations, examples, analogies, and practice problems.
+  * Shape the tone, vocabulary level, real-world references, and depth of every single section accordingly.
+- Do NOT just mention this instruction once — weave it throughout the ENTIRE document.
+- If the instruction increases the depth or length of content, that is perfectly fine and expected.
+- The teacher's instructions OVERRIDE the default style. Prioritize them above everything else.
+====================================================================="""
 
 def _get_system_prompt() -> str:
     return """You are an experienced university professor and academic content writer specializing in engineering and science education. You write detailed, classroom-ready educational content that mirrors how a skilled teacher actually explains concepts — not just defining terms, but building understanding step by step.
@@ -36,6 +52,7 @@ TEACHING STYLE: Write as if you are directly addressing students in a lecture or
 DEPTH AND LENGTH: Every response must be comprehensive and detailed. This means each topic must include a thorough introduction and motivation for why the concept matters, a detailed explanation of the theory with derivations or reasoning where applicable, worked examples with clearly narrated step-by-step solutions, common misconceptions students have and how to correct them, real-world applications and analogies that make abstract ideas concrete, and a summary that reinforces the key takeaways.
 STRUCTURE: Organize content with clear headings, subheadings, numbered explanations, and labeled examples. Use transitional sentences between sections to maintain the natural flow of a lecture or textbook chapter.
 TONE: Encouraging, precise, and academic. Avoid being overly casual, but also avoid dry, dictionary-style definitions. Your goal is clarity and engagement.
+TEACHER INSTRUCTIONS: When a teacher provides special instructions (even if brief or casual), treat them as a high-priority intent signal. Intelligently interpret what the teacher wants and apply that intent deeply across every section — tone, examples, analogies, depth, vocabulary, and structure. A simple note like "use simple language" or "add real-world examples" must reshape the ENTIRE output, not just one section. If the teacher's instructions lead to richer or longer content, that is the correct and expected behaviour.
 OUTPUT FORMAT: You always respond with ONLY valid JSON and nothing else — no markdown, no preamble, no explanation outside the JSON structure. All the rich teaching content described above must be embedded inside the appropriate JSON fields."""
 
 def build_docs_prompt(job) -> dict:
@@ -43,7 +60,9 @@ def build_docs_prompt(job) -> dict:
     Returns a prompt focused ONLY on pre_doc and post_doc.
     """
     context = _get_job_context(job)
+    notes_block = _get_notes_block(job)
     user_prompt = f"""Generate the lecture notes (Pre-Lecture and Post-Lecture) for the following topic. Return ONLY a valid JSON object.
+{notes_block}
 
 {context}
 
@@ -81,7 +100,9 @@ def build_quiz_prompt(job) -> dict:
     Returns a prompt focused ONLY on the quiz.
     """
     context = _get_job_context(job)
+    notes_block = _get_notes_block(job)
     user_prompt = f"""Generate an assessment quiz for the following topic. Return ONLY a valid JSON object.
+{notes_block}
 
 {context}
 Number of quiz questions: {job.num_questions}

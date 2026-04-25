@@ -9,6 +9,26 @@ def _get_image_uri(file_id):
     # This thumbnail URI format is the most reliable for embedding Drive images into Docs
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
 
+
+def _apply_times_new_roman(docs_service, doc_id):
+    """Applies Times New Roman font to the entire document body."""
+    try:
+        doc = docs_service.documents().get(documentId=doc_id).execute()
+        end_index = doc['body']['content'][-1]['endIndex'] - 1
+        if end_index > 1:
+            docs_service.documents().batchUpdate(documentId=doc_id, body={
+                'requests': [{
+                    'updateTextStyle': {
+                        'range': {'startIndex': 1, 'endIndex': end_index},
+                        'textStyle': {'weightedFontFamily': {'fontFamily': 'Times New Roman'}},
+                        'fields': 'weightedFontFamily'
+                    }
+                }]
+            }).execute()
+            logger.info("Times New Roman font applied to entire document.")
+    except Exception as e:
+        logger.warning(f"Font application failed: {e}")
+
 def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, post_doc_data=None):
     """
     Applies the professional branded template:
@@ -53,7 +73,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     # ── Step 2: Insert Metadata Table ────────────────────────────────────────
     try:
         docs_service.documents().batchUpdate(documentId=doc_id, body={
-            'requests': [{'insertTable': {'rows': 9, 'columns': 4, 'location': {'index': 1}}}]
+            'requests': [{'insertTable': {'rows': 8, 'columns': 4, 'location': {'index': 1}}}]
         }).execute()
     except Exception as e:
         logger.error(f"Table creation failed: {e}")
@@ -69,11 +89,11 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
         return table['tableRows'][r]['tableCells'][c]['content'][0]['startIndex']
 
     template_data = [
-        (8, 1, ", ".join(pre_doc_data.get('expected_outcomes', [])) if pre_doc_data else "N/A"),
-        (8, 0, "Learning Outcomes:"),
-        (7, 1, ", ".join(pre_doc_data.get('learning_objectives', [])) if pre_doc_data else "N/A"),
-        (7, 0, "Learning Objectives:"),
-        (6, 1, job.topic), (6, 0, "Title of the Lecture:"),
+        (7, 1, ", ".join(pre_doc_data.get('expected_outcomes', [])) if pre_doc_data else "N/A"),
+        (7, 0, "Learning Outcomes:"),
+        (6, 1, ", ".join(pre_doc_data.get('learning_objectives', [])) if pre_doc_data else "N/A"),
+        (6, 0, "Learning Objectives:"),
+        (5, 1, job.topic), (5, 0, "Title of the Lecture:"),
         (4, 0, f"Lecture No: {job.lecture_no}"),
         (3, 3, job.subject_code or "N/A"), (3, 2, "Subject Code:"),
         (3, 1, job.subject_name or "Generic"), (3, 0, "Subject:"),
@@ -81,7 +101,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
         (2, 1, teacher.full_name), (2, 0, "Name of Faculty:"),
         (1, 3, job.session), (1, 2, "Session:"),
         (1, 1, teacher.department), (1, 0, "Department:"),
-        (0, 0, f"{teacher.institution} - Academic Resources")
+        (0, 0, f"{teacher.institution}")
     ]
 
     fill_requests = []
@@ -94,7 +114,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
         'tableStartLocation': {'index': table_start_index}, 'rowIndex': 4, 'columnIndex': 0},
         'rowSpan': 1, 'columnSpan': 4}}})
     # Merge value columns for content rows
-    for row in [5, 6, 7, 8]:
+    for row in [5, 6, 7]:
         fill_requests.append({'mergeTableCells': {'tableRange': {'tableCellLocation': {
             'tableStartLocation': {'index': table_start_index}, 'rowIndex': row, 'columnIndex': 1},
             'rowSpan': 1, 'columnSpan': 3}}})
@@ -153,7 +173,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
         (1, 0), (1, 2),   # Department:, Session:
         (2, 0), (2, 2),   # Name of Faculty:, Semester:
         (3, 0), (3, 2),   # Subject:, Subject Code:
-        (5, 0), (6, 0), (7, 0), (8, 0)  # content labels
+        (5, 0), (6, 0), (7, 0)  # Title, Learning Objectives, Learning Outcomes
     ]
     for r, c in label_cells:
         try:
@@ -212,18 +232,18 @@ def create_pre_doc(docs_service, drive_service, pre_doc_data: dict, job) -> tupl
     # To be safe, we'll append to the end
     content_parts = []
     content_parts.append(f"\n\n{title.upper()}\n")
-    content_parts.append("\n📚 Prerequisite Knowledge\n")
+    content_parts.append("\n Prerequisite Knowledge\n")
     for prereq in pre_doc_data.get('prerequisite_topics', []):
         content_parts.append(f"• {prereq}\n")
     
-    content_parts.append("\n📖 Introduction\n")
+    content_parts.append("\n Introduction\n")
     content_parts.append(pre_doc_data.get('introduction', '') + "\n\n")
     
-    content_parts.append("🔑 Key Concepts\n")
+    content_parts.append(" Key Concepts\n")
     for kc in pre_doc_data.get('key_concepts', []):
         content_parts.append(f"• {kc.get('concept', '')}: {kc.get('brief_explanation', '')}\n")
     
-    content_parts.append("\n📋 Pre-Reading Material\n")
+    content_parts.append("\n Pre-Reading Material\n")
     content_parts.append(pre_doc_data.get('pre_reading_material', '') + "\n")
     
     full_text = "".join(content_parts)
@@ -234,7 +254,10 @@ def create_pre_doc(docs_service, drive_service, pre_doc_data: dict, job) -> tupl
     
     requests = [{'insertText': {'location': {'index': last_index}, 'text': full_text}}]
     docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
-    
+
+    # Apply Times New Roman font to the entire document
+    _apply_times_new_roman(docs_service, doc_id)
+
     drive_service.permissions().create(fileId=doc_id, body={'role': 'reader', 'type': 'anyone'}).execute()
     return doc_id, f"https://docs.google.com/document/d/{doc_id}/edit"
 
@@ -248,27 +271,27 @@ def create_post_doc(docs_service, drive_service, post_doc_data: dict, job) -> tu
 
     content_parts = []
     content_parts.append(f"\n\n{title.upper()}\n")
-    content_parts.append("\n📝 Lecture Summary\n")
+    content_parts.append("\n Lecture Summary\n")
     content_parts.append(post_doc_data.get('lecture_summary', '') + "\n")
     
-    content_parts.append("\n📐 Key Definitions & Formulas\n")
+    content_parts.append("\n Key Definitions & Formulas\n")
     for item in post_doc_data.get('key_formulas_or_definitions', []):
         content_parts.append(f"• {item}\n")
     
-    content_parts.append("\n💡 Detailed Notes\n")
+    content_parts.append("\n Detailed Notes\n")
     for note in post_doc_data.get('detailed_notes', []):
         content_parts.append(f"\n{note.get('heading', '')}\n")
         content_parts.append(note.get('content', '') + "\n")
     
-    content_parts.append("\n⚠️ Common Mistakes to Avoid\n")
+    content_parts.append("\n Common Mistakes to Avoid\n")
     for mistake in post_doc_data.get('common_mistakes', []):
         content_parts.append(f"• {mistake}\n")
     
-    content_parts.append("\n📚 Further Reading\n")
+    content_parts.append("\n Further Reading\n")
     for ref in post_doc_data.get('further_reading', []):
         content_parts.append(f"• {ref}\n")
     
-    content_parts.append("\n🏋️ Practice Problems\n")
+    content_parts.append("\n Practice Problems\n")
     for i, prob in enumerate(post_doc_data.get('practice_problems', []), 1):
         content_parts.append(f"{i}. {prob}\n")
 
@@ -279,6 +302,9 @@ def create_post_doc(docs_service, drive_service, post_doc_data: dict, job) -> tu
     
     requests = [{'insertText': {'location': {'index': last_index}, 'text': full_text}}]
     docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
-    
+
+    # Apply Times New Roman font to the entire document
+    _apply_times_new_roman(docs_service, doc_id)
+
     drive_service.permissions().create(fileId=doc_id, body={'role': 'reader', 'type': 'anyone'}).execute()
     return doc_id, f"https://docs.google.com/document/d/{doc_id}/edit"

@@ -139,10 +139,10 @@ CELERY_TASK_SERIALIZER   = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE          = 'UTC'
 CELERY_TASK_ALWAYS_EAGER = env.bool('CELERY_TASK_ALWAYS_EAGER', default=False)
-CELERY_BROKER_USE_SSL = {
+CELERY_BROKER_USE_SSL = None if DEBUG else {
     'ssl_cert_reqs': 'none'
 }
-CELERY_REDIS_BACKEND_USE_SSL = {
+CELERY_REDIS_BACKEND_USE_SSL = None if DEBUG else {
     'ssl_cert_reqs': 'none'
 }
 
