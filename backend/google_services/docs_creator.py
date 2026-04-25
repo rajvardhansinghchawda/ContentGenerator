@@ -29,6 +29,64 @@ def _apply_times_new_roman(docs_service, doc_id):
     except Exception as e:
         logger.warning(f"Font application failed: {e}")
 
+def _insert_content_with_styling(docs_service, doc_id, content_list):
+    """
+    Inserts content with Times New Roman and bold headings.
+    Uses TWO separate batchUpdate calls:
+      1st: insert all text (indices shift here, so we separate it)
+      2nd: apply all styling (indices are now stable)
+    """
+    doc_curr = docs_service.documents().get(documentId=doc_id).execute()
+    base_index = doc_curr['body']['content'][-1]['endIndex'] - 1
+
+    # ── Phase 1: Insert all text in one batch ────────────────────────────────
+    # We insert each piece individually at a tracked cursor so order is correct
+    insert_requests = []
+    cursor = base_index
+    segment_info = []  # (start, end, is_bold, item_index) — offsets from base_index
+
+    for i, (text, is_bold) in enumerate(content_list):
+        segment_info.append((cursor, cursor + len(text), is_bold, i))
+        insert_requests.append({'insertText': {'location': {'index': cursor}, 'text': text}})
+        cursor += len(text)
+
+    if insert_requests:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={'requests': insert_requests}
+        ).execute()
+
+    # ── Phase 2: Apply styling in a separate batch ────────────────────────────
+    style_requests = []
+
+    # Apply Times New Roman to all newly inserted content
+    if segment_info:
+        style_requests.append({
+            'updateTextStyle': {
+                'range': {'startIndex': base_index, 'endIndex': cursor},
+                'textStyle': {'weightedFontFamily': {'fontFamily': 'Times New Roman'}},
+                'fields': 'weightedFontFamily'
+            }
+        })
+
+    for start, end, is_bold, item_index in segment_info:
+        if is_bold and end > start:
+            size = 14 if item_index == 0 else 12
+            style_requests.append({
+                'updateTextStyle': {
+                    'range': {'startIndex': start, 'endIndex': end},
+                    'textStyle': {
+                        'bold': True,
+                        'fontSize': {'magnitude': size, 'unit': 'PT'},
+                    },
+                    'fields': 'bold,fontSize'
+                }
+            })
+
+    if style_requests:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={'requests': style_requests}
+        ).execute()
+
 def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, post_doc_data=None):
     """
     Applies the professional branded template:
@@ -151,12 +209,13 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     final_table = next(el['table'] for el in final_doc['body']['content'] if 'table' in el)
 
     def get_text_range(r, c):
-        """Returns the range of the actual text paragraph inside a cell."""
+        """Returns the range of the entire content inside a cell, excluding the terminator."""
         cell = final_table['tableRows'][r]['tableCells'][c]
-        para = cell['content'][0]
+        start_index = cell['content'][0]['startIndex']
+        end_index = cell['content'][-1]['endIndex']
         return {
-            'startIndex': para['startIndex'],
-            'endIndex': para.get('endIndex', para['startIndex'] + 1)
+            'startIndex': start_index,
+            'endIndex': end_index - 1
         }
 
     style_requests = []
@@ -187,12 +246,15 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
         'fields': 'foregroundColor,bold'
     }})
 
-    # All label cells — bold + navy blue
+    BLACK_COLOR = {'foregroundColor': {'color': {'rgbColor': {'red': 0.0, 'green': 0.0, 'blue': 0.0}}}}
+
+    # Label cells — bold + navy blue
     label_cells = [
-        (1, 0), (1, 2),   # Department:, Session:
-        (2, 0), (2, 2),   # Name of Faculty:, Semester:
-        (3, 0), (3, 2),   # Subject:, Subject Code:
-        (5, 0), (6, 0), (7, 0)  # Title, Learning Objectives, Learning Outcomes
+        (1, 0), (1, 2),  # Department:, Session:
+        (2, 0), (2, 2),  # Name of Faculty:, Semester:
+        (3, 0), (3, 2),  # Subject:, Subject Code:
+        (5, 0),          # Title of the Lecture:
+        (6, 0), (7, 0)   # Learning Objectives:, Learning Outcomes:
     ]
     for r, c in label_cells:
         try:
@@ -200,6 +262,24 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
             style_requests.append({'updateTextStyle': {
                 'range': rng,
                 'textStyle': {**BLUE_COLOR, 'bold': True},
+                'fields': 'foregroundColor,bold'
+            }})
+        except Exception:
+            pass
+
+    # Value cells — bold + black
+    value_cells = [
+        (1, 1), (1, 3),  # Department value, Session value
+        (2, 1), (2, 3),  # Faculty value, Semester value
+        (3, 1), (3, 3),  # Subject value, Subject Code value
+        (5, 1),          # Title value
+    ]
+    for r, c in value_cells:
+        try:
+            rng = get_text_range(r, c)
+            style_requests.append({'updateTextStyle': {
+                'range': rng,
+                'textStyle': {**BLACK_COLOR, 'bold': True},
                 'fields': 'foregroundColor,bold'
             }})
         except Exception:
@@ -268,29 +348,8 @@ def create_pre_doc(docs_service, drive_service, pre_doc_data: dict, job) -> tupl
     content_list.append(("\n Pre-Reading Material\n", True))
     content_list.append((pre_doc_data.get('pre_reading_material', '') + "\n", False))
 
-    # Get initial length
-    doc_curr = docs_service.documents().get(documentId=doc_id).execute()
-    current_index = doc_curr['body']['content'][-1]['endIndex'] - 1
-
-    requests = []
-    for text, is_bold in content_list:
-        start = current_index
-        requests.append({'insertText': {'location': {'index': start}, 'text': text}})
-        if is_bold:
-            requests.append({
-                'updateTextStyle': {
-                    'range': {'startIndex': start, 'endIndex': start + len(text)},
-                    'textStyle': {'bold': True},
-                    'fields': 'bold'
-                }
-            })
-        current_index += len(text)
-
-    if requests:
-        docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
-
-    # Apply Times New Roman font to the entire document
-    _apply_times_new_roman(docs_service, doc_id)
+    # Insert content with helper
+    _insert_content_with_styling(docs_service, doc_id, content_list)
 
     drive_service.permissions().create(fileId=doc_id, body={'role': 'reader', 'type': 'anyone'}).execute()
     return doc_id, f"https://docs.google.com/document/d/{doc_id}/edit"
@@ -330,29 +389,8 @@ def create_post_doc(docs_service, drive_service, post_doc_data: dict, job) -> tu
     for i, prob in enumerate(post_doc_data.get('practice_problems', []), 1):
         content_list.append((f"{i}. {prob}\n", False))
 
-    # Get initial length
-    doc_curr = docs_service.documents().get(documentId=doc_id).execute()
-    current_index = doc_curr['body']['content'][-1]['endIndex'] - 1
-
-    requests = []
-    for text, is_bold in content_list:
-        start = current_index
-        requests.append({'insertText': {'location': {'index': start}, 'text': text}})
-        if is_bold:
-            requests.append({
-                'updateTextStyle': {
-                    'range': {'startIndex': start, 'endIndex': start + len(text)},
-                    'textStyle': {'bold': True},
-                    'fields': 'bold'
-                }
-            })
-        current_index += len(text)
-
-    if requests:
-        docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
-
-    # Apply Times New Roman font to the entire document
-    _apply_times_new_roman(docs_service, doc_id)
+    # Insert content with helper
+    _insert_content_with_styling(docs_service, doc_id, content_list)
 
     drive_service.permissions().create(fileId=doc_id, body={'role': 'reader', 'type': 'anyone'}).execute()
     return doc_id, f"https://docs.google.com/document/d/{doc_id}/edit"

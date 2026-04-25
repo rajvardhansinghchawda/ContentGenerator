@@ -24,12 +24,18 @@ def create_quiz_form(forms_service, drive_service, quiz_data: dict) -> tuple:
     form = forms_service.forms().create(body=form_body).execute()
     form_id = form['formId']
     
-    # Step 2: Enable quiz mode
+    # Step 2: Enable quiz mode + collect verified emails + limit to 1 response
     requests = [
         {
             'updateSettings': {
-                'settings': {'quizSettings': {'isQuiz': True}},
-                'updateMask': 'quizSettings.isQuiz'
+                'settings': {
+                    'quizSettings': {'isQuiz': True},
+                    'responseSettings': {
+                        'emailCollectionType': 'VERIFIED',
+                        'limitOneResponsePerUser': True,
+                    }
+                },
+                'updateMask': 'quizSettings.isQuiz,responseSettings.emailCollectionType,responseSettings.limitOneResponsePerUser'
             }
         }
     ]
