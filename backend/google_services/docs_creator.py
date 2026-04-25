@@ -58,7 +58,7 @@ def _insert_content_with_styling(docs_service, doc_id, content_list):
     # ── Phase 2: Apply styling in a separate batch ────────────────────────────
     style_requests = []
 
-    # Apply Times New Roman to all newly inserted content
+    # Apply Times New Roman to the newly inserted body content
     if segment_info:
         style_requests.append({
             'updateTextStyle': {
@@ -220,6 +220,8 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
 
     style_requests = []
 
+    TN_FONT = {'weightedFontFamily': {'fontFamily': 'Times New Roman'}}
+
     # Row 0: Institution header — centered, bold, navy blue, large
     r0_range = get_text_range(0, 0)
     style_requests.append({'updateParagraphStyle': {
@@ -229,8 +231,8 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     }})
     style_requests.append({'updateTextStyle': {
         'range': r0_range,
-        'textStyle': {**BLUE_COLOR, 'bold': True, 'fontSize': {'magnitude': 14, 'unit': 'PT'}},
-        'fields': 'foregroundColor,bold,fontSize'
+        'textStyle': {**BLUE_COLOR, **TN_FONT, 'bold': True, 'fontSize': {'magnitude': 14, 'unit': 'PT'}},
+        'fields': 'foregroundColor,bold,fontSize,weightedFontFamily'
     }})
 
     # Row 4: Lecture No — centered, bold, navy blue
@@ -242,8 +244,8 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     }})
     style_requests.append({'updateTextStyle': {
         'range': r4_range,
-        'textStyle': {**BLUE_COLOR, 'bold': True},
-        'fields': 'foregroundColor,bold'
+        'textStyle': {**BLUE_COLOR, **TN_FONT, 'bold': True},
+        'fields': 'foregroundColor,bold,weightedFontFamily'
     }})
 
     BLACK_COLOR = {'foregroundColor': {'color': {'rgbColor': {'red': 0.0, 'green': 0.0, 'blue': 0.0}}}}
@@ -261,8 +263,8 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
             rng = get_text_range(r, c)
             style_requests.append({'updateTextStyle': {
                 'range': rng,
-                'textStyle': {**BLUE_COLOR, 'bold': True},
-                'fields': 'foregroundColor,bold'
+                'textStyle': {**BLUE_COLOR, **TN_FONT, 'bold': True},
+                'fields': 'foregroundColor,bold,weightedFontFamily'
             }})
         except Exception:
             pass
@@ -279,8 +281,8 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
             rng = get_text_range(r, c)
             style_requests.append({'updateTextStyle': {
                 'range': rng,
-                'textStyle': {**BLACK_COLOR, 'bold': True},
-                'fields': 'foregroundColor,bold'
+                'textStyle': {**BLACK_COLOR, **TN_FONT, 'bold': True},
+                'fields': 'foregroundColor,bold,weightedFontFamily'
             }})
         except Exception:
             pass
