@@ -207,6 +207,7 @@
 }
 
 /* ── Responsive ── */
+/* ── Responsive ── */
 @media (max-width: 900px) {
   .dashboard-layout {
     grid-template-columns: 1fr;
@@ -214,35 +215,39 @@
   }
 
   .sidebar {
-    position: static;
+    position: sticky;
+    top: 0;
+    z-index: 100;
     height: auto;
     flex-direction: row;
     align-items: center;
-    padding: var(--space-md) var(--space-lg);
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--surface-container-low);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(178, 177, 188, 0.1);
     overflow-y: visible;
-    overflow-x: auto;
   }
 
   .sidebar-logo {
     border-bottom: none;
     margin-bottom: 0;
     padding: 0;
-    padding-right: var(--space-xl);
-    border-right: 1px solid rgba(178, 177, 188, 0.2);
-    margin-right: var(--space-lg);
+    border-right: none;
+    margin-right: 0;
   }
 
   .sidebar-logo-mark {
-    width: 32px;
-    height: 32px;
+    width: 36px;
+    height: 36px;
   }
 
-  .sidebar-brand { display: none; }
+  .sidebar-brand { 
+    display: none; 
+  }
 
   .sidebar-nav {
-    flex-direction: row;
-    padding: 0;
-    flex: 1;
+    display: none; /* Hide main nav on mobile sidebar, we can use a bottom nav or menu later */
   }
 
   .sidebar-footer {
@@ -250,14 +255,75 @@
     padding: 0;
     flex-direction: row;
     align-items: center;
+    gap: var(--space-sm);
   }
 
   .sidebar-user-info { display: none; }
   .sidebar-user { gap: var(--space-sm); }
+  
+  .sidebar-logout {
+    padding: 8px;
+    width: auto;
+  }
+  .sidebar-logout span:last-child { display: none; }
 
-  .dashboard-header,
+  .dashboard-header {
+    padding: var(--space-xl) var(--space-lg) 0;
+  }
+
   .dashboard-content {
-    padding-left: var(--space-lg);
-    padding-right: var(--space-lg);
+    padding: var(--space-lg);
+    gap: var(--space-xl);
+  }
+}
+
+/* Bottom Navigation for Mobile */
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--surface-container-low);
+    padding: 8px var(--space-lg);
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1000;
+    border-top: 1px solid rgba(178, 177, 188, 0.1);
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.03);
+  }
+
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    color: var(--on-surface-variant);
+    text-decoration: none;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: var(--radius-lg);
+    transition: all var(--transition-fast);
+    background: transparent;
+    border: none;
+  }
+
+  .mobile-nav-item.active {
+    color: var(--primary);
+  }
+
+  .mobile-nav-item .material-icons-outlined {
+    font-size: 24px;
+  }
+  
+  /* Add padding to main content to account for bottom nav */
+  .dashboard-main {
+    padding-bottom: 70px;
   }
 }

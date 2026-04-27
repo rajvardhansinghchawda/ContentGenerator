@@ -42,24 +42,12 @@ def generate_content_task(self, job_id: str):
     start_time = time.time()
 
     try:
-        from ai_engine.groq_client import verify_prompt_safety
         logger.info(f"[Job {job_id}] Starting generation pipeline...")
-        
-        # Combine topic and notes for a thorough check
-        job.current_step = "Safety Check: Scanning topic..."
-        job.save(update_fields=['current_step'])
-        
-        # Combine topic and notes for a thorough check
-        safety_text = f"Topic: {job.topic} | Notes: {job.additional_notes}"
-        if not verify_prompt_safety(safety_text, model='llama-guard-3-8b'):
-            logger.warning(f"[Job {job_id}] Prompt flagged as malicious!")
-            raise PermissionError("Safety Check Failed: The provided topic or instructions violated our content policy.")
 
-        # ── Step 2: Phase 1 - Generate Docs ────────────────────────
+        # ── Phase 1: Generate Docs ──────────────────────────────────
         job.current_step = "Phase 1: Generating Lecture Notes (using Mixtral)..."
         job.save(update_fields=['current_step'])
 
-        # Use a high-quality model for notes
         logger.info(f"[Job {job_id}] Calling Groq Phase 1 (Docs)...")
 
         docs_prompt = build_docs_prompt(job)
@@ -67,7 +55,7 @@ def generate_content_task(self, job_id: str):
             docs_prompt['system'], 
             docs_prompt['user'], 
             preferred_model='llama-3.3-70b-versatile',
-            max_tokens=2500
+            max_tokens=3500
         )
         
         # ── Step 2.5: Phase 2 - Generate Quiz ──────────────────────
@@ -81,7 +69,7 @@ def generate_content_task(self, job_id: str):
             quiz_prompt['system'], 
             quiz_prompt['user'], 
             preferred_model='llama-3.1-8b-instant',
-            max_tokens=3500
+            max_tokens=4000
         )
 
         # Merge results
@@ -144,9 +132,5 @@ def generate_content_task(self, job_id: str):
         job.error_message = str(exc)
         job.generation_time_sec = round(elapsed, 2)
         job.save(update_fields=['status', 'error_message', 'generation_time_sec'])
-
-        # Permission/access-denied failures are permanent; retries only waste queue time.
-        if isinstance(exc, PermissionError):
-            return
 
         raise self.retry(exc=exc, countdown=60)

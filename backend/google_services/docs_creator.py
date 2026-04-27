@@ -9,6 +9,84 @@ def _get_image_uri(file_id):
     # This thumbnail URI format is the most reliable for embedding Drive images into Docs
     return f"https://drive.google.com/thumbnail?id={file_id}&sz=w1000"
 
+
+def _apply_times_new_roman(docs_service, doc_id):
+    """Applies Times New Roman font to the entire document body."""
+    try:
+        doc = docs_service.documents().get(documentId=doc_id).execute()
+        end_index = doc['body']['content'][-1]['endIndex'] - 1
+        if end_index > 1:
+            docs_service.documents().batchUpdate(documentId=doc_id, body={
+                'requests': [{
+                    'updateTextStyle': {
+                        'range': {'startIndex': 1, 'endIndex': end_index},
+                        'textStyle': {'weightedFontFamily': {'fontFamily': 'Times New Roman'}},
+                        'fields': 'weightedFontFamily'
+                    }
+                }]
+            }).execute()
+            logger.info("Times New Roman font applied to entire document.")
+    except Exception as e:
+        logger.warning(f"Font application failed: {e}")
+
+def _insert_content_with_styling(docs_service, doc_id, content_list):
+    """
+    Inserts content with Times New Roman and bold headings.
+    Uses TWO separate batchUpdate calls:
+      1st: insert all text (indices shift here, so we separate it)
+      2nd: apply all styling (indices are now stable)
+    """
+    doc_curr = docs_service.documents().get(documentId=doc_id).execute()
+    base_index = doc_curr['body']['content'][-1]['endIndex'] - 1
+
+    # ── Phase 1: Insert all text in one batch ────────────────────────────────
+    # We insert each piece individually at a tracked cursor so order is correct
+    insert_requests = []
+    cursor = base_index
+    segment_info = []  # (start, end, is_bold, item_index) — offsets from base_index
+
+    for i, (text, is_bold) in enumerate(content_list):
+        segment_info.append((cursor, cursor + len(text), is_bold, i))
+        insert_requests.append({'insertText': {'location': {'index': cursor}, 'text': text}})
+        cursor += len(text)
+
+    if insert_requests:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={'requests': insert_requests}
+        ).execute()
+
+    # ── Phase 2: Apply styling in a separate batch ────────────────────────────
+    style_requests = []
+
+    # Apply Times New Roman to the newly inserted body content
+    if segment_info:
+        style_requests.append({
+            'updateTextStyle': {
+                'range': {'startIndex': base_index, 'endIndex': cursor},
+                'textStyle': {'weightedFontFamily': {'fontFamily': 'Times New Roman'}},
+                'fields': 'weightedFontFamily'
+            }
+        })
+
+    for start, end, is_bold, item_index in segment_info:
+        if is_bold and end > start:
+            size = 14 if item_index == 0 else 12
+            style_requests.append({
+                'updateTextStyle': {
+                    'range': {'startIndex': start, 'endIndex': end},
+                    'textStyle': {
+                        'bold': True,
+                        'fontSize': {'magnitude': size, 'unit': 'PT'},
+                    },
+                    'fields': 'bold,fontSize'
+                }
+            })
+
+    if style_requests:
+        docs_service.documents().batchUpdate(
+            documentId=doc_id, body={'requests': style_requests}
+        ).execute()
+
 def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, post_doc_data=None):
     """
     Applies the professional branded template:
@@ -53,7 +131,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     # ── Step 2: Insert Metadata Table ────────────────────────────────────────
     try:
         docs_service.documents().batchUpdate(documentId=doc_id, body={
-            'requests': [{'insertTable': {'rows': 9, 'columns': 4, 'location': {'index': 1}}}]
+            'requests': [{'insertTable': {'rows': 8, 'columns': 4, 'location': {'index': 1}}}]
         }).execute()
     except Exception as e:
         logger.error(f"Table creation failed: {e}")
@@ -68,12 +146,31 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     def cell_text_index(r, c):
         return table['tableRows'][r]['tableCells'][c]['content'][0]['startIndex']
 
+    def format_points(data, key):
+        if not data: return "N/A"
+        points = data.get(key, [])
+        if not points: return "N/A"
+        # If the points already start with numbers, don't double count
+        formatted = []
+        for i, p in enumerate(points[:5]):
+            prefix = f"{i+1}. "
+            if p.strip().startswith(prefix):
+                formatted.append(p.strip())
+            else:
+                # Remove any existing bullets or numbers if present
+                clean_p = p.lstrip('•-123456789. ')
+                formatted.append(f"{prefix}{clean_p}")
+        return "\n".join(formatted)
+
+    pre_obj = format_points(pre_doc_data, 'learning_objectives') if pre_doc_data else format_points(post_doc_data, 'learning_objectives')
+    pre_out = format_points(pre_doc_data, 'expected_outcomes') if pre_doc_data else format_points(post_doc_data, 'expected_outcomes')
+
     template_data = [
-        (8, 1, ", ".join(pre_doc_data.get('expected_outcomes', [])) if pre_doc_data else "N/A"),
-        (8, 0, "Learning Outcomes:"),
-        (7, 1, ", ".join(pre_doc_data.get('learning_objectives', [])) if pre_doc_data else "N/A"),
-        (7, 0, "Learning Objectives:"),
-        (6, 1, job.topic), (6, 0, "Title of the Lecture:"),
+        (7, 1, pre_out),
+        (7, 0, "Learning Outcomes:"),
+        (6, 1, pre_obj),
+        (6, 0, "Learning Objectives:"),
+        (5, 1, job.topic), (5, 0, "Title of the Lecture:"),
         (4, 0, f"Lecture No: {job.lecture_no}"),
         (3, 3, job.subject_code or "N/A"), (3, 2, "Subject Code:"),
         (3, 1, job.subject_name or "Generic"), (3, 0, "Subject:"),
@@ -81,7 +178,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
         (2, 1, teacher.full_name), (2, 0, "Name of Faculty:"),
         (1, 3, job.session), (1, 2, "Session:"),
         (1, 1, teacher.department), (1, 0, "Department:"),
-        (0, 0, f"{teacher.institution} - Academic Resources")
+        (0, 0, f"{teacher.institution}")
     ]
 
     fill_requests = []
@@ -94,7 +191,7 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
         'tableStartLocation': {'index': table_start_index}, 'rowIndex': 4, 'columnIndex': 0},
         'rowSpan': 1, 'columnSpan': 4}}})
     # Merge value columns for content rows
-    for row in [5, 6, 7, 8]:
+    for row in [5, 6, 7]:
         fill_requests.append({'mergeTableCells': {'tableRange': {'tableCellLocation': {
             'tableStartLocation': {'index': table_start_index}, 'rowIndex': row, 'columnIndex': 1},
             'rowSpan': 1, 'columnSpan': 3}}})
@@ -112,15 +209,18 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     final_table = next(el['table'] for el in final_doc['body']['content'] if 'table' in el)
 
     def get_text_range(r, c):
-        """Returns the range of the actual text paragraph inside a cell."""
+        """Returns the range of the entire content inside a cell, excluding the terminator."""
         cell = final_table['tableRows'][r]['tableCells'][c]
-        para = cell['content'][0]
+        start_index = cell['content'][0]['startIndex']
+        end_index = cell['content'][-1]['endIndex']
         return {
-            'startIndex': para['startIndex'],
-            'endIndex': para.get('endIndex', para['startIndex'] + 1)
+            'startIndex': start_index,
+            'endIndex': end_index - 1
         }
 
     style_requests = []
+
+    TN_FONT = {'weightedFontFamily': {'fontFamily': 'Times New Roman'}}
 
     # Row 0: Institution header — centered, bold, navy blue, large
     r0_range = get_text_range(0, 0)
@@ -131,8 +231,8 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     }})
     style_requests.append({'updateTextStyle': {
         'range': r0_range,
-        'textStyle': {**BLUE_COLOR, 'bold': True, 'fontSize': {'magnitude': 14, 'unit': 'PT'}},
-        'fields': 'foregroundColor,bold,fontSize'
+        'textStyle': {**BLUE_COLOR, **TN_FONT, 'bold': True, 'fontSize': {'magnitude': 14, 'unit': 'PT'}},
+        'fields': 'foregroundColor,bold,fontSize,weightedFontFamily'
     }})
 
     # Row 4: Lecture No — centered, bold, navy blue
@@ -144,24 +244,45 @@ def _apply_professional_template(docs_service, doc_id, job, pre_doc_data=None, p
     }})
     style_requests.append({'updateTextStyle': {
         'range': r4_range,
-        'textStyle': {**BLUE_COLOR, 'bold': True},
-        'fields': 'foregroundColor,bold'
+        'textStyle': {**BLUE_COLOR, **TN_FONT, 'bold': True},
+        'fields': 'foregroundColor,bold,weightedFontFamily'
     }})
 
-    # All label cells — bold + navy blue
+    BLACK_COLOR = {'foregroundColor': {'color': {'rgbColor': {'red': 0.0, 'green': 0.0, 'blue': 0.0}}}}
+
+    # Label cells — bold + navy blue
     label_cells = [
-        (1, 0), (1, 2),   # Department:, Session:
-        (2, 0), (2, 2),   # Name of Faculty:, Semester:
-        (3, 0), (3, 2),   # Subject:, Subject Code:
-        (5, 0), (6, 0), (7, 0), (8, 0)  # content labels
+        (1, 0), (1, 2),  # Department:, Session:
+        (2, 0), (2, 2),  # Name of Faculty:, Semester:
+        (3, 0), (3, 2),  # Subject:, Subject Code:
+        (5, 0),          # Title of the Lecture:
+        (6, 0), (7, 0)   # Learning Objectives:, Learning Outcomes:
     ]
     for r, c in label_cells:
         try:
             rng = get_text_range(r, c)
             style_requests.append({'updateTextStyle': {
                 'range': rng,
-                'textStyle': {**BLUE_COLOR, 'bold': True},
-                'fields': 'foregroundColor,bold'
+                'textStyle': {**BLUE_COLOR, **TN_FONT, 'bold': True},
+                'fields': 'foregroundColor,bold,weightedFontFamily'
+            }})
+        except Exception:
+            pass
+
+    # Value cells — bold + black
+    value_cells = [
+        (1, 1), (1, 3),  # Department value, Session value
+        (2, 1), (2, 3),  # Faculty value, Semester value
+        (3, 1), (3, 3),  # Subject value, Subject Code value
+        (5, 1),          # Title value
+    ]
+    for r, c in value_cells:
+        try:
+            rng = get_text_range(r, c)
+            style_requests.append({'updateTextStyle': {
+                'range': rng,
+                'textStyle': {**BLACK_COLOR, **TN_FONT, 'bold': True},
+                'fields': 'foregroundColor,bold,weightedFontFamily'
             }})
         except Exception:
             pass
@@ -210,31 +331,28 @@ def create_pre_doc(docs_service, drive_service, pre_doc_data: dict, job) -> tupl
 
     # Build rest of content (starts after the table, roughly index 300+ after filling)
     # To be safe, we'll append to the end
-    content_parts = []
-    content_parts.append(f"\n\n{title.upper()}\n")
-    content_parts.append("\n📚 Prerequisite Knowledge\n")
+    # Build rest of content with bold headings
+    content_list = [
+        (f"\n\n{title.upper()}\n", True),
+        ("\n Prerequisite Knowledge\n", True),
+    ]
     for prereq in pre_doc_data.get('prerequisite_topics', []):
-        content_parts.append(f"• {prereq}\n")
+        content_list.append((f"• {prereq}\n", False))
     
-    content_parts.append("\n📖 Introduction\n")
-    content_parts.append(pre_doc_data.get('introduction', '') + "\n\n")
+    content_list.append(("\n Introduction\n", True))
+    content_list.append((pre_doc_data.get('introduction', '') + "\n\n", False))
     
-    content_parts.append("🔑 Key Concepts\n")
+    content_list.append((" Key Concepts\n", True))
     for kc in pre_doc_data.get('key_concepts', []):
-        content_parts.append(f"• {kc.get('concept', '')}: {kc.get('brief_explanation', '')}\n")
+        content_list.append((f"• {kc.get('concept', '')}: ", True))
+        content_list.append((f"{kc.get('brief_explanation', '')}\n", False))
     
-    content_parts.append("\n📋 Pre-Reading Material\n")
-    content_parts.append(pre_doc_data.get('pre_reading_material', '') + "\n")
-    
-    full_text = "".join(content_parts)
-    
-    # Get current length to append at the end
-    doc_curr = docs_service.documents().get(documentId=doc_id).execute()
-    last_index = doc_curr['body']['content'][-1]['endIndex'] - 1
-    
-    requests = [{'insertText': {'location': {'index': last_index}, 'text': full_text}}]
-    docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
-    
+    content_list.append(("\n Pre-Reading Material\n", True))
+    content_list.append((pre_doc_data.get('pre_reading_material', '') + "\n", False))
+
+    # Insert content with helper
+    _insert_content_with_styling(docs_service, doc_id, content_list)
+
     drive_service.permissions().create(fileId=doc_id, body={'role': 'reader', 'type': 'anyone'}).execute()
     return doc_id, f"https://docs.google.com/document/d/{doc_id}/edit"
 
@@ -246,39 +364,35 @@ def create_post_doc(docs_service, drive_service, post_doc_data: dict, job) -> tu
     # Apply Branded Template
     _apply_professional_template(docs_service, doc_id, job, post_doc_data=post_doc_data)
 
-    content_parts = []
-    content_parts.append(f"\n\n{title.upper()}\n")
-    content_parts.append("\n📝 Lecture Summary\n")
-    content_parts.append(post_doc_data.get('lecture_summary', '') + "\n")
+    content_list = [
+        (f"\n\n{title.upper()}\n", True),
+    ]
+    content_list.append(("\n Lecture Summary\n", True))
+    content_list.append((post_doc_data.get('lecture_summary', '') + "\n", False))
     
-    content_parts.append("\n📐 Key Definitions & Formulas\n")
+    content_list.append(("\n Key Definitions & Formulas\n", True))
     for item in post_doc_data.get('key_formulas_or_definitions', []):
-        content_parts.append(f"• {item}\n")
+        content_list.append((f"• {item}\n", False))
     
-    content_parts.append("\n💡 Detailed Notes\n")
+    content_list.append(("\n Detailed Notes\n", True))
     for note in post_doc_data.get('detailed_notes', []):
-        content_parts.append(f"\n{note.get('heading', '')}\n")
-        content_parts.append(note.get('content', '') + "\n")
+        content_list.append((f"\n{note.get('heading', '')}\n", True))
+        content_list.append((note.get('content', '') + "\n", False))
     
-    content_parts.append("\n⚠️ Common Mistakes to Avoid\n")
+    content_list.append(("\n Common Mistakes to Avoid\n", True))
     for mistake in post_doc_data.get('common_mistakes', []):
-        content_parts.append(f"• {mistake}\n")
+        content_list.append((f"• {mistake}\n", False))
     
-    content_parts.append("\n📚 Further Reading\n")
+    content_list.append(("\n Further Reading\n", True))
     for ref in post_doc_data.get('further_reading', []):
-        content_parts.append(f"• {ref}\n")
+        content_list.append((f"• {ref}\n", False))
     
-    content_parts.append("\n🏋️ Practice Problems\n")
+    content_list.append(("\n Practice Problems\n", True))
     for i, prob in enumerate(post_doc_data.get('practice_problems', []), 1):
-        content_parts.append(f"{i}. {prob}\n")
+        content_list.append((f"{i}. {prob}\n", False))
 
-    full_text = "".join(content_parts)
-    
-    doc_curr = docs_service.documents().get(documentId=doc_id).execute()
-    last_index = doc_curr['body']['content'][-1]['endIndex'] - 1
-    
-    requests = [{'insertText': {'location': {'index': last_index}, 'text': full_text}}]
-    docs_service.documents().batchUpdate(documentId=doc_id, body={'requests': requests}).execute()
-    
+    # Insert content with helper
+    _insert_content_with_styling(docs_service, doc_id, content_list)
+
     drive_service.permissions().create(fileId=doc_id, body={'role': 'reader', 'type': 'anyone'}).execute()
     return doc_id, f"https://docs.google.com/document/d/{doc_id}/edit"

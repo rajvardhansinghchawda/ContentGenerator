@@ -84,7 +84,9 @@ const ProfileSettings = ({ isOpen, onClose }) => {
 
     try {
       await uploadAsset(fd);
-      await fetchUser(); // Refresh to show file ID or status
+      // Update only the user status without resetting the form fields the user is currently typing
+      const { data } = await getMe();
+      setUser(data);
       alert(`${type.charAt(0).toUpperCase() + type.slice(1)} branding saved successfully and will be applied to all future documents.`);
     } catch (err) {
       alert('Upload failed');
