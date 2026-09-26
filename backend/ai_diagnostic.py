@@ -22,12 +22,12 @@ def run_test():
         print(f"Safety Check FAILED: {e}")
 
     # 2. Test Main Model
-    print("\nTesting Main Model (llama-3.3-70b-versatile)...")
+    print("\nTesting Main Model (openai/gpt-oss-120b)...")
     try:
         res = call_groq(
             "You are a helpful assistant.", 
             "Say 'EduFlow is Ready' in JSON format: {\"message\": \"...\"}",
-            preferred_model='llama-3.3-70b-versatile',
+            preferred_model='openai/gpt-oss-120b',
             max_tokens=100
         )
         print(f"Main Model Success: {res['content']}")

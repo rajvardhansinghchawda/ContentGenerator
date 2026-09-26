@@ -45,7 +45,7 @@ def generate_content_task(self, job_id: str):
         logger.info(f"[Job {job_id}] Starting generation pipeline...")
 
         # ── Phase 1: Generate Docs ──────────────────────────────────
-        job.current_step = "Phase 1: Generating Lecture Notes (using Mixtral)..."
+        job.current_step = "Phase 1: Generating Lecture Notes..."
         job.save(update_fields=['current_step'])
 
         logger.info(f"[Job {job_id}] Calling Groq Phase 1 (Docs)...")
@@ -54,21 +54,21 @@ def generate_content_task(self, job_id: str):
         docs_res = call_groq(
             docs_prompt['system'], 
             docs_prompt['user'], 
-            preferred_model='llama-3.3-70b-versatile',
+            preferred_model='openai/gpt-oss-120b',
             max_tokens=3500
         )
         
         # ── Step 2.5: Phase 2 - Generate Quiz ──────────────────────
-        job.current_step = f"Phase 2: Building {job.num_questions}-Question Quiz (using Llama)..."
+        job.current_step = f"Phase 2: Building {job.num_questions}-Question Quiz..."
         job.save(update_fields=['current_step'])
 
-        # Use the "instant" model for the large quiz array
+        # Use the fast model for the large quiz array
         logger.info(f"[Job {job_id}] Calling Groq Phase 2 (Quiz)...")
         quiz_prompt = build_quiz_prompt(job)
         quiz_res = call_groq(
             quiz_prompt['system'], 
             quiz_prompt['user'], 
-            preferred_model='llama-3.1-8b-instant',
+            preferred_model='openai/gpt-oss-20b',
             max_tokens=4000
         )
 

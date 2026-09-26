@@ -128,7 +128,7 @@ TOKEN_ENCRYPTION_KEY = env('TOKEN_ENCRYPTION_KEY', default='')
 
 # Groq
 GROQ_API_KEY = env('GROQ_API_KEY', default='')
-GROQ_MODEL   = env('GROQ_MODEL', default='llama-3.1-8b-instant')
+GROQ_MODEL   = env('GROQ_MODEL', default='openai/gpt-oss-120b')
 
 # Celery
 CELERY_BROKER_URL        = env('REDIS_URL', default='redis://localhost:6379/0')
