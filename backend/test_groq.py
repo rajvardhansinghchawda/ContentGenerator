@@ -28,11 +28,12 @@ def main() -> int:
         payload = {
             "model": model,
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Reply with exactly: pong"},
+                {"role": "system", "content": "You are a helpful assistant. Reply with only valid JSON: {\"status\": \"ok\", \"message\": \"pong\"}"},
+                {"role": "user", "content": "Ping"},
             ],
-            "temperature": 0,
-            "max_tokens": 16,
+            "response_format": {"type": "json_object"},
+            "temperature": 0.2,
+            "max_tokens": 120,
         }
 
         request = urlrequest.Request(
@@ -49,8 +50,10 @@ def main() -> int:
         try:
             with urlrequest.urlopen(request, timeout=30) as response:
                 body = json.loads(response.read().decode("utf-8"))
-                text = body["choices"][0]["message"]["content"].strip()
-                print(f"[{model}] SUCCESS (200): {text}")
+                choice = body["choices"][0]["message"]
+                text = choice.get("content", "").strip()
+                tokens = body.get("usage", {}).get("total_tokens")
+                print(f"[{model}] SUCCESS (200) [tokens: {tokens}]: {text}")
         except HTTPError as exc:
             try:
                 error_body = exc.read().decode("utf-8")
@@ -59,6 +62,31 @@ def main() -> int:
             print(f"[{model}] HTTP {exc.code}: {error_body or exc.reason}")
         except Exception as exc:
             print(f"[{model}] ERROR: {exc}")
+
+    # Test Prompt Guard Safety Model
+    safety_model = "meta-llama/llama-prompt-guard-2-86m"
+    safety_payload = {
+        "model": safety_model,
+        "messages": [{"role": "user", "content": "What is photosynthesis?"}],
+        "max_tokens": 10,
+    }
+    safety_req = urlrequest.Request(
+        GROQ_URL,
+        data=json.dumps(safety_payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(safety_req, timeout=30) as response:
+            body = json.loads(response.read().decode("utf-8"))
+            score = body["choices"][0]["message"].get("content", "").strip()
+            print(f"[{safety_model}] SUCCESS (200) -> Injection Score: {score} (Safe: {float(score) < 0.85})")
+    except Exception as exc:
+        print(f"[{safety_model}] FAILED: {exc}")
 
     return 0
 
